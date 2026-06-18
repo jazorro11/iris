@@ -45,6 +45,31 @@ test("la solicitud se completa en el segundo turno → persiste y notifica", asy
   assert.equal(seller.length, 1);
 });
 
+test("tras MAX_RONDAS turnos incompletos persiste como incompleto y notifica", async () => {
+  // rondas acumula +1 por llamada; MAX_RONDAS=4; route dispara persistir cuando rondas >= 4
+  // → la persistencia ocurre exactamente en la 4ª llamada a runIris
+  const saved: LeadRow[] = [];
+  const seller: string[] = [];
+  const cp = new MemorySaver();
+  const deps: IrisDeps = {
+    extract: async () => ({ proposito: "joyeria" }),
+    saveLead: async (r) => { saved.push(r); return { id: "x" }; },
+    notifySeller: async (t) => { seller.push(t); },
+    checkpointer: cp,
+  };
+  // Turns 1-3: must NOT persist yet
+  for (let i = 0; i < 3; i++) {
+    await runIris(deps, { telegramUserId: 99, chatId: 99, text: "..." });
+    assert.equal(saved.length, 0, `no debería persistir antes de la vuelta ${i + 1}`);
+  }
+  // Turn 4: rondas reaches MAX_RONDAS (4), triggers persistir
+  const last = await runIris(deps, { telegramUserId: 99, chatId: 99, text: "..." });
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].estado, "incompleto");
+  assert.equal(seller.length, 1);
+  assert.equal(last.estado, "incompleto");
+});
+
 test("buildSellerSummary incluye el id de Telegram y el estado", () => {
   const summary = buildSellerSummary({
     telegram_user_id: 99, telegram_username: "ana", estado: "completo",

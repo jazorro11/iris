@@ -9,9 +9,9 @@ export interface LeadRow {
   estado: EstadoLead;
   campos_faltantes: string[];
   solicitud: Solicitud;
-  proposito: string | null;
-  tipo_pieza: string | null;
-  origen_pais: string | null;
+  proposito: Solicitud["proposito"] | null;
+  tipo_pieza: Solicitud["tipo_pieza"] | null;
+  origen_pais: NonNullable<Solicitud["origen"]>["pais"] | null;
 }
 
 /** Fila leída de `leads` (incluye columnas generadas por la BD). */

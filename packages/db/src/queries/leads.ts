@@ -27,6 +27,7 @@ export async function upsertLead(db: DbClient, row: LeadRow): Promise<{ id: stri
     .select("id")
     .single();
   if (error) throw error;
+  if (!data) throw new Error("upsertLead: no se devolvió ninguna fila");
   return data as { id: string };
 }
 
@@ -37,7 +38,7 @@ export async function getLead(db: DbClient, telegramUserId: number): Promise<Lea
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
   if (error) throw error;
-  return (data as Lead | null) ?? null;
+  return (data as Lead | null);
 }
 
 export async function addLeadMessage(

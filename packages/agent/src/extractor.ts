@@ -1,11 +1,12 @@
 import { SolicitudSchema, type Solicitud } from "@iris/types";
+import type { BaseLanguageModelInput } from "@langchain/core/language_models/base";
 
 /** Interfaz mínima de un modelo capaz de salida estructurada (satisfecha por ChatOpenAI). */
 export interface StructuredModel {
   withStructuredOutput(
     schema: unknown,
     opts?: { name?: string }
-  ): { invoke: (input: unknown) => Promise<unknown> };
+  ): { invoke: (input: BaseLanguageModelInput) => Promise<unknown> };
 }
 
 export const EXTRACTION_SYSTEM_PROMPT = `Eres un asistente de Méraldi, casa de esmeraldas colombianas.

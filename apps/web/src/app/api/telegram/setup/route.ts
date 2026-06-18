@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 function publicOrigin(request: Request): string {
   const fromEnv = process.env.TELEGRAM_WEBHOOK_BASE_URL?.replace(/\/+$/, "");
   if (fromEnv) return fromEnv;
@@ -17,10 +19,15 @@ export async function GET(request: Request) {
   if (!token) return NextResponse.json({ error: "TELEGRAM_BOT_TOKEN not set" }, { status: 500 });
 
   const webhookUrl = `${publicOrigin(request)}/api/telegram/webhook`;
-  const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url: webhookUrl, ...(secret ? { secret_token: secret } : {}) }),
-  });
-  return NextResponse.json({ webhookUrl, telegram: await res.json() });
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: webhookUrl, ...(secret ? { secret_token: secret } : {}) }),
+    });
+    return NextResponse.json({ webhookUrl, telegram: await res.json() });
+  } catch (err) {
+    console.error("[setup] error llamando a Telegram:", err);
+    return NextResponse.json({ error: "No se pudo conectar con Telegram", webhookUrl }, { status: 502 });
+  }
 }

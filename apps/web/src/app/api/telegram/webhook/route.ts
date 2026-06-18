@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerClient, upsertLead, addLeadMessage } from "@iris/db";
-import { runIris, createChatModel, extractRequest, type IrisDeps, type StructuredModel } from "@iris/agent";
+import { runIris, createChatModel, extractRequest, type IrisDeps } from "@iris/agent";
 import { sendTelegramMessage } from "@/lib/telegram/send";
 import { parseTelegramUpdate } from "@/lib/telegram/parse";
 
@@ -18,8 +18,9 @@ export async function POST(request: Request) {
   if (!parsed) return NextResponse.json({ ok: true });
 
   const db = createServerClient();
-  const model = createChatModel() as unknown as StructuredModel;
-  const sellerChatId = Number(process.env.SELLER_TELEGRAM_CHAT_ID);
+  const model = createChatModel();
+  const sellerRaw = process.env.SELLER_TELEGRAM_CHAT_ID;
+  const sellerChatId = sellerRaw && sellerRaw.trim() ? Number(sellerRaw) : NaN;
 
   const deps: IrisDeps = {
     extract: (text) => extractRequest(model, text),
