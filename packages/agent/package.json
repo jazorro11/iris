@@ -1,0 +1,21 @@
+{
+  "name": "@iris/agent",
+  "private": true,
+  "version": "0.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "tsx --test \"src/**/__tests__/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@iris/db": "*",
+    "@iris/types": "*",
+    "@langchain/core": "1.1.41",
+    "@langchain/langgraph": "^1.0",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0",
+    "@langchain/openai": "^1.0",
+    "zod": "^3"
+  },
+  "devDependencies": { "typescript": "^5", "tsx": "^4.19.0" }
+}
