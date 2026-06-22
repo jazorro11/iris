@@ -5,6 +5,7 @@ import { sendTelegramMessage } from "@/lib/telegram/send";
 import { parseTelegramUpdate } from "@/lib/telegram/parse";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET ?? "";
 
