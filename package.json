@@ -1,0 +1,16 @@
+{
+  "name": "iris",
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "engines": { "node": ">=20" },
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "test": "turbo run test"
+  },
+  "devDependencies": { "tsx": "^4.19.0", "turbo": "^2", "typescript": "^5" },
+  "overrides": { "@langchain/core": "1.1.41", "@langchain/langgraph-checkpoint": "1.0.1", "uuid": "^11.0.0" }
+}

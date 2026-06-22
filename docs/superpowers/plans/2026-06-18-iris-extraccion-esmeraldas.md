@@ -11,7 +11,9 @@
 ## Global Constraints
 
 - **Node:** >= 20. **Package manager:** npm (workspaces).
-- **Dependencias fijas/floor (copiar verbatim):** `@langchain/core` pin `1.1.41` vía `overrides` en root; `@langchain/langgraph` `^1.0`; `@langchain/openai` `^1.0`; `@langchain/langgraph-checkpoint-postgres` `^1.0`; `zod` `^3`; `@supabase/supabase-js` `^2`; `next` `^15`; `react` `^19`; `tsx` `^4.19.0`; `turbo` `^2`; `typescript` `^5`.
+- **Dependencias fijas/floor (copiar verbatim):** `@langchain/core` pin `1.1.41` vía `overrides` en root; `@langchain/langgraph` `1.2.7` (exacto); `@langchain/openai` `1.4.2` (exacto); `@langchain/langgraph-checkpoint-postgres` `1.0.1` (exacto); `zod` `^3`; `@supabase/supabase-js` `^2`; `next` `^15`; `react` `^19`; `tsx` `^4.19.0`; `turbo` `^2`; `typescript` `^5`.
+  - **Nota (deriva de versiones, 2026-06-18):** los rangos `^1.0` de langgraph/openai resuelven hoy a versiones que exigen `@langchain/core` >= 1.1.48/1.2.0, incompatibles con el pin `1.1.41` (forzarían `--legacy-peer-deps`). Por eso se fijan exactas las versiones probadas por `agent-web`. Instalar SIEMPRE sin `--legacy-peer-deps`; si vuelve a hacer falta, es señal de deriva — re-fijar versiones, no usar el flag.
+  - **`@iris/db` en `@iris/agent`:** se difiere — `@iris/agent` NO declara `@iris/db` hasta la Task 7 (que es la primera que lo importa, en `graph.ts`). En Task 7 se añade `"@iris/db": "*"` a las deps del agente y se reinstala.
 - **Scope de paquetes:** `@iris/config`, `@iris/types`, `@iris/db`, `@iris/agent`, `@iris/web`. Nombre root: `iris`.
 - **Tests:** cada paquete con código lógico define script `"test": "tsx --test \"src/**/__tests__/**/*.test.ts\""` y usa `node:test` + `node:assert/strict`.
 - **Idioma de cara al usuario:** español (mensajes al comprador y al vendedor).
@@ -1085,6 +1087,14 @@ git commit -m "feat(db): cliente Supabase, queries de leads y migración inicial
   - `buildGraph(deps: IrisDeps): Promise<CompiledGraph>`
   - `runIris(deps: IrisDeps, input: { telegramUserId: number; chatId: number; telegramUsername?: string; text: string }): Promise<{ reply: string; estado: EstadoLead }>`
   - `index.ts` re-exporta lo público del agente (incl. `createChatModel`, `extractRequest`, `EXTRACTION_SYSTEM_PROMPT`).
+
+- [ ] **Step 0: Añadir la dependencia `@iris/db` al agente y reinstalar**
+
+`graph.ts` importa `buildLeadRow` de `@iris/db` (creado en Task 6). En la Task 3 se difirió esta dependencia, así que añádela ahora a `packages/agent/package.json` (en `dependencies`, orden alfabético, justo antes de `@iris/types`):
+```json
+"@iris/db": "*",
+```
+Luego `npm install` (SIN `--legacy-peer-deps`). Verifica exit 0 y que `@langchain/core` siga en `1.1.41`.
 
 - [ ] **Step 1: Escribir el test que falla (grafo con `MemorySaver`)**
 
