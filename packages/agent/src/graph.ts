@@ -1,5 +1,5 @@
 import { StateGraph, START, END, type BaseCheckpointSaver } from "@langchain/langgraph";
-import type { Solicitud, EstadoLead, LeadRow } from "@iris/types";
+import type { Solicitud, EstadoLead, LeadRow, Piedra } from "@iris/types";
 import { buildLeadRow } from "@iris/db";
 import { IrisState, type State } from "./state.js";
 import { evaluarEstado, MAX_RONDAS } from "./request.js";
@@ -10,6 +10,8 @@ export interface IrisDeps {
   extract: (text: string) => Promise<Solicitud>;
   saveLead: (row: LeadRow) => Promise<{ id: string }>;
   notifySeller: (text: string) => Promise<void>;
+  /** Opcional: propone piedras del inventario que coincidan. */
+  matchInventory?: (solicitud: Solicitud) => Promise<Piedra[]>;
   /** Por defecto PostgresSaver; en tests se inyecta MemorySaver. */
   checkpointer?: BaseCheckpointSaver;
 }
@@ -29,6 +31,15 @@ export function buildSellerSummary(row: LeadRow): string {
     row.campos_faltantes.length ? `Faltan: ${row.campos_faltantes.join(", ")}` : null,
   ].filter(Boolean);
   return partes.join("\n");
+}
+
+export function buildPiedrasPropuestas(piedras: Piedra[]): string {
+  if (piedras.length === 0) return "";
+  const items = piedras.map((p) => {
+    const link = p.media_url ? ` — ${p.media_url}` : "";
+    return `• ${p.nombre} (${p.peso_ct} ct, ${p.precio_usd_ct} USD/ct)${link}`;
+  });
+  return `\n\nTengo estas piedras que podrían encajar:\n${items.join("\n")}`;
 }
 
 async function extractorNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
@@ -60,11 +71,13 @@ async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     camposFaltantes: state.camposFaltantes,
   });
   await deps.saveLead(row);
-  await deps.notifySeller(buildSellerSummary(row));
+  const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
+  const propuesta = buildPiedrasPropuestas(piedras);
+  await deps.notifySeller(buildSellerSummary(row) + propuesta);
   const reply = estadoFinal === "completo"
     ? "¡Gracias! Registré tu solicitud y un asesor de Méraldi te contactará pronto. 💚"
     : "Gracias por la información. Un asesor de Méraldi continuará contigo para afinar los detalles.";
-  return { reply, estado: estadoFinal };
+  return { reply: reply + propuesta, estado: estadoFinal };
 }
 
 export async function buildGraph(deps: IrisDeps) {

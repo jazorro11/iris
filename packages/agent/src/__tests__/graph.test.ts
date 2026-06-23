@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MemorySaver } from "@langchain/langgraph";
-import { runIris, buildSellerSummary, type IrisDeps } from "../graph.js";
-import type { LeadRow, Solicitud } from "@iris/types";
+import { runIris, buildSellerSummary, buildPiedrasPropuestas, type IrisDeps } from "../graph.js";
+import type { LeadRow, Solicitud, Piedra } from "@iris/types";
 
 test("mensaje incompleto pide aclaración y no persiste", async () => {
   const saved: LeadRow[] = [];
@@ -78,4 +78,45 @@ test("buildSellerSummary incluye el id de Telegram y el estado", () => {
   });
   assert.match(summary, /99/);
   assert.match(summary, /completo/i);
+});
+
+test("buildPiedrasPropuestas vacío cuando no hay piedras", () => {
+  assert.equal(buildPiedrasPropuestas([]), "");
+});
+
+test("buildPiedrasPropuestas lista nombre, peso y precio", () => {
+  const piedras: Piedra[] = [{
+    id: "a", nombre: "Cushion 6.72 ct - 440 usd-ct", forma: "cojin",
+    peso_ct: 6.72, precio_usd_ct: 440, cantidad_piedras: 1,
+    media_url: null, disponible: true, notas: null,
+  }];
+  const txt = buildPiedrasPropuestas(piedras);
+  assert.match(txt, /Cushion 6\.72/);
+  assert.match(txt, /440/);
+});
+
+test("al completar, propone piedras del inventario en reply y al vendedor", async () => {
+  const seller: string[] = [];
+  const piedra: Piedra = {
+    id: "a", nombre: "Redonda 3.09 ct - 1.500 usd-ct", forma: "redondo",
+    peso_ct: 3.09, precio_usd_ct: 1500, cantidad_piedras: 1,
+    media_url: null, disponible: true, notas: null,
+  };
+  const deps: IrisDeps = {
+    extract: async () => ({
+      proposito: "joyeria", tipo_pieza: "gema_tallada", color: { tono: "verde" },
+      presupuesto: { max: 5000, moneda: "USD" }, peso_quilates: { min: 1 },
+      origen: { pais: "colombia" },
+    }),
+    saveLead: async () => ({ id: "lead-1" }),
+    notifySeller: async (t) => { seller.push(t); },
+    matchInventory: async () => [piedra],
+    checkpointer: new MemorySaver(),
+  };
+  const { reply, estado } = await runIris(deps, {
+    telegramUserId: 55, chatId: 55, text: "esmeralda verde de Colombia, 1ct, hasta 5000",
+  });
+  assert.equal(estado, "completo");
+  assert.match(reply, /Redonda 3\.09/);
+  assert.match(seller[0], /Redonda 3\.09/);
 });
