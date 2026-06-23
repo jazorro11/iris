@@ -12,7 +12,8 @@ export function filtrarPiedras(piedras: Piedra[], s: Solicitud): Piedra[] {
   const pres = s.presupuesto;
   const hayForma = forma != null && forma !== "indiferente";
   const hayPeso = peso != null && (peso.min != null || peso.max != null);
-  const hayPres = pres != null && (pres.min != null || pres.max != null);
+  // ponytail: presupuesto en COP no es comparable con precios USD/ct → se omite el filtro de precio
+  const hayPres = pres != null && (pres.min != null || pres.max != null) && pres.moneda !== "COP";
   if (!hayForma && !hayPeso && !hayPres) return [];
 
   return piedras
@@ -33,5 +34,12 @@ export function filtrarPiedras(piedras: Piedra[], s: Solicitud): Piedra[] {
 export async function matchInventory(db: DbClient, solicitud: Solicitud): Promise<Piedra[]> {
   const { data, error } = await db.from("inventario").select("*").eq("disponible", true);
   if (error) throw error;
-  return filtrarPiedras((data ?? []) as Piedra[], solicitud);
+  // Supabase devuelve columnas numeric como string; coercionar a number en el borde.
+  const piedras = (data ?? []).map((r: any) => ({
+    ...r,
+    peso_ct: Number(r.peso_ct),
+    precio_usd_ct: Number(r.precio_usd_ct),
+    cantidad_piedras: Number(r.cantidad_piedras),
+  })) as Piedra[];
+  return filtrarPiedras(piedras, solicitud);
 }

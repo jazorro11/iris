@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { filtrarPiedras } from "../queries/inventario.js";
+import { filtrarPiedras, matchInventory } from "../queries/inventario.js";
+import type { DbClient } from "../client.js";
 import type { Piedra } from "@iris/types";
 
 const base: Omit<Piedra, "id" | "nombre" | "forma" | "peso_ct" | "precio_usd_ct"> = {
@@ -60,7 +61,32 @@ test("limita a 3 resultados", () => {
 });
 
 test("excluye no disponibles", () => {
-  const stock = [piedra("x", "redondo", 1, 100)];
-  stock[0].disponible = false;
+  const stock = [{ ...piedra("x", "redondo", 1, 100), disponible: false }];
   assert.deepEqual(filtrarPiedras(stock, { corte: { forma: "redondo" } }), []);
+});
+
+test("presupuesto en COP no filtra por precio (se omite)", () => {
+  // forma presente → debe devolver la redonda aunque el max COP sea absurdamente bajo
+  const r = filtrarPiedras(STOCK, { corte: { forma: "redondo" }, presupuesto: { max: 1, moneda: "COP" } });
+  assert.deepEqual(r.map((p) => p.id), ["d"]);
+});
+
+test("solo presupuesto COP no es criterio relevante", () => {
+  assert.deepEqual(filtrarPiedras(STOCK, { presupuesto: { max: 500, moneda: "COP" } }), []);
+});
+
+test("matchInventory coerciona numeric (string) a number y ordena", async () => {
+  const fakeDb = {
+    from: () => ({ select: () => ({ eq: async () => ({
+      data: [
+        { id: "a", nombre: "A", forma: "redondo", peso_ct: "3.09", precio_usd_ct: "1500", cantidad_piedras: "1", media_url: null, disponible: true, notas: null },
+        { id: "b", nombre: "B", forma: "redondo", peso_ct: "1.00", precio_usd_ct: "200", cantidad_piedras: "1", media_url: null, disponible: true, notas: null },
+      ],
+      error: null,
+    }) }) }),
+  } as unknown as DbClient;
+  const r = await matchInventory(fakeDb, { corte: { forma: "redondo" } });
+  assert.equal(typeof r[0].precio_usd_ct, "number");
+  assert.equal(typeof r[0].peso_ct, "number");
+  assert.deepEqual(r.map((p) => p.id), ["b", "a"]);
 });
