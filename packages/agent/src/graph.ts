@@ -57,8 +57,12 @@ function route(state: State): "preguntar" | "persistir" {
   return "preguntar";
 }
 
-function preguntarNode(state: State): Partial<State> {
-  return { reply: buildClarificationMessage(state.camposFaltantes) };
+async function preguntarNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
+  const base = buildClarificationMessage(state.camposFaltantes);
+  // Proponer piedras ya, aunque la solicitud aún no esté completa (filtrarPiedras
+  // devuelve [] si todavía no hay forma/peso/presupuesto, así que no genera ruido).
+  const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
+  return { reply: base + buildPiedrasPropuestas(piedras) };
 }
 
 async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
@@ -85,7 +89,7 @@ export async function buildGraph(deps: IrisDeps) {
   const graph = new StateGraph(IrisState)
     .addNode("extractor", (s: State) => extractorNode(s, deps))
     .addNode("validador", validadorNode)
-    .addNode("preguntar", preguntarNode)
+    .addNode("preguntar", (s: State) => preguntarNode(s, deps))
     .addNode("persistir", (s: State) => persistirNode(s, deps))
     .addEdge(START, "extractor")
     .addEdge("extractor", "validador")
