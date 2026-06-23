@@ -20,6 +20,32 @@ test("mensaje incompleto pide aclaración y no persiste", async () => {
   assert.match(reply, /presupuesto|quilates|origen|tipo|color/i);
 });
 
+test("propone piedras durante la aclaración (solicitud aún incompleta)", async () => {
+  const piedra: Piedra = {
+    id: "a", nombre: "Cuadrada 3.61 ct - 1.750 usd-ct", forma: "corte_esmeralda",
+    peso_ct: 3.61, precio_usd_ct: 1750, cantidad_piedras: 1,
+    media_url: null, disponible: true, notas: null,
+  };
+  let pasoSolicitud: Solicitud | null = null;
+  const deps: IrisDeps = {
+    // forma + peso + presupuesto, pero faltan proposito/tipo_pieza/color/origen → incompleto
+    extract: async () => ({
+      corte: { forma: "corte_esmeralda" }, peso_quilates: { min: 3, max: 4 },
+      presupuesto: { max: 2000, base: "por_quilate" },
+    }),
+    saveLead: async () => ({ id: "x" }),
+    notifySeller: async () => {},
+    matchInventory: async (s) => { pasoSolicitud = s; return [piedra]; },
+    checkpointer: new MemorySaver(),
+  };
+  const { reply, estado } = await runIris(deps, {
+    telegramUserId: 33, chatId: 33, text: "cuadrada de 3-4 ct, hasta 2000 por quilate",
+  });
+  assert.equal(estado, "en_aclaracion");           // sigue incompleta
+  assert.match(reply, /Cuadrada 3\.61/);           // pero ya propone
+  assert.notEqual(pasoSolicitud, null);            // matchInventory recibió la solicitud
+});
+
 test("la solicitud se completa en el segundo turno → persiste y notifica", async () => {
   const saved: LeadRow[] = [];
   const seller: string[] = [];
