@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerClient, upsertLead, addLeadMessage, matchInventory } from "@iris/db";
-import { runIris, createChatModel, extractRequest, type IrisDeps } from "@iris/agent";
+import { runIris, createChatModel, extractRequest, createComposerModel, composeReply, type IrisDeps } from "@iris/agent";
 import { sendTelegramMessage } from "@/lib/telegram/send";
 import { parseTelegramUpdate } from "@/lib/telegram/parse";
 
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
 
   const db = createServerClient();
   const model = createChatModel();
+  const composerModel = createComposerModel();
   const sellerRaw = process.env.SELLER_TELEGRAM_CHAT_ID;
   const sellerChatId = sellerRaw && sellerRaw.trim() ? Number(sellerRaw) : NaN;
 
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
       if (Number.isFinite(sellerChatId)) await sendTelegramMessage(sellerChatId, text);
     },
     matchInventory: (solicitud) => matchInventory(db, solicitud),
+    compose: (brief) => composeReply(composerModel, brief),
   };
 
   try {
