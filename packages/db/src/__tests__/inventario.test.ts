@@ -87,6 +87,18 @@ test("presupuesto de un solo valor (min==max) se trata como tope", () => {
   assert.deepEqual(r.map((p) => p.id), ["c", "d", "b"]);
 });
 
+test("caso B: forma + presupuesto tope (min==max) se combinan", () => {
+  // "corte esmeralda, máximo 2000 USD/ct" → forma=corte_esmeralda Y tope 2000.
+  // De STOCK los corte_esmeralda son a(5100) y b(1750); el tope deja solo b,
+  // y c/d quedan fuera por forma. Cubre la combinación forma+precio (ningún
+  // otro test la ejerce) usando el presupuesto degenerado que emite el LLM.
+  const r = filtrarPiedras(STOCK, {
+    corte: { forma: "corte_esmeralda" },
+    presupuesto: { min: 2000, max: 2000, base: "por_quilate" },
+  });
+  assert.deepEqual(r.map((p) => p.id), ["b"]);
+});
+
 test("regresión: peso ~10ct ya no exige el valor exacto", () => {
   const big = [piedra("g", "corte_esmeralda", 9.04, 4300), piedra("h", "corte_esmeralda", 12.24, 520)];
   // {min:10,max:10} → banda [8.5, 11.5] → g (9.04) entra, h (12.24) fuera
