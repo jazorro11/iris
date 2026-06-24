@@ -75,6 +75,25 @@ test("solo presupuesto COP no es criterio relevante", () => {
   assert.deepEqual(filtrarPiedras(STOCK, { presupuesto: { max: 500, moneda: "COP" } }), []);
 });
 
+test("peso de un solo valor (min==max) se expande a banda ±15%", () => {
+  // "3 ct" llega como {min:3,max:3} → banda [2.55, 3.45] → solo d (3.09); b (3.61) queda fuera
+  const r = filtrarPiedras(STOCK, { peso_quilates: { min: 3, max: 3 } });
+  assert.deepEqual(r.map((p) => p.id), ["d"]);
+});
+
+test("presupuesto de un solo valor (min==max) se trata como tope", () => {
+  // "2000 por quilate" llega como {min:2000,max:2000} → tope 2000 → c,d,b (a=5100 fuera), asc por precio
+  const r = filtrarPiedras(STOCK, { presupuesto: { min: 2000, max: 2000, base: "por_quilate" } });
+  assert.deepEqual(r.map((p) => p.id), ["c", "d", "b"]);
+});
+
+test("regresión: peso ~10ct ya no exige el valor exacto", () => {
+  const big = [piedra("g", "corte_esmeralda", 9.04, 4300), piedra("h", "corte_esmeralda", 12.24, 520)];
+  // {min:10,max:10} → banda [8.5, 11.5] → g (9.04) entra, h (12.24) fuera
+  const r = filtrarPiedras(big, { peso_quilates: { min: 10, max: 10 } });
+  assert.deepEqual(r.map((p) => p.id), ["g"]);
+});
+
 test("matchInventory coerciona numeric (string) a number y ordena", async () => {
   const fakeDb = {
     from: () => ({ select: () => ({ eq: async () => ({
