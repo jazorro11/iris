@@ -4,6 +4,21 @@ import type { Piedra, Solicitud } from "@iris/types";
 const dentro = (v: number, min?: number | null, max?: number | null): boolean =>
   (min == null || v >= min) && (max == null || v <= max);
 
+/** Un comprador que da un solo número de peso ("10 ct") llega como min==max.
+ * Con intervalo cerrado eso exige el valor exacto y no casa con pesos continuos:
+ * expandir el punto a una banda ±15%. */
+function bandaPeso(min: number | null, max: number | null): [number | null, number | null] {
+  if (min != null && max != null && min === max) return [min * 0.85, max * 1.15];
+  return [min, max];
+}
+
+/** Un presupuesto de un solo valor ("2000 USD") llega como min==max; se interpreta
+ * como tope (máximo), no como precio exacto. */
+function topePresupuesto(min: number | null, max: number | null): [number | null, number | null] {
+  if (min != null && max != null && min === max) return [null, max];
+  return [min, max];
+}
+
 /** Filtra el stock contra la solicitud. Solo usa forma + peso + precio/ct.
  * Devuelve [] si el comprador no dio ninguno de esos tres criterios. */
 export function filtrarPiedras(piedras: Piedra[], s: Solicitud): Piedra[] {
@@ -16,15 +31,18 @@ export function filtrarPiedras(piedras: Piedra[], s: Solicitud): Piedra[] {
   const hayPres = pres != null && (pres.min != null || pres.max != null) && pres.moneda !== "COP";
   if (!hayForma && !hayPeso && !hayPres) return [];
 
+  const [pesoMin, pesoMax] = bandaPeso(peso?.min ?? null, peso?.max ?? null);
+  const [presMin, presMax] = topePresupuesto(pres?.min ?? null, pres?.max ?? null);
+
   return piedras
     .filter((p) => p.disponible)
     .filter((p) => !hayForma || p.forma === forma)
-    .filter((p) => !hayPeso || dentro(p.peso_ct, peso!.min, peso!.max))
+    .filter((p) => !hayPeso || dentro(p.peso_ct, pesoMin, pesoMax))
     .filter((p) => {
       if (!hayPres) return true;
       // ponytail: base ausente → por_quilate (los precios del inventario son por quilate)
-      if (pres!.base === "total") return dentro(p.precio_usd_ct * p.peso_ct, pres!.min, pres!.max);
-      return dentro(p.precio_usd_ct, pres!.min, pres!.max);
+      if (pres!.base === "total") return dentro(p.precio_usd_ct * p.peso_ct, presMin, presMax);
+      return dentro(p.precio_usd_ct, presMin, presMax);
     })
     .sort((a, b) => a.precio_usd_ct - b.precio_usd_ct)
     .slice(0, 3);
