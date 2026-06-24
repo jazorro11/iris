@@ -1,13 +1,10 @@
 import type { Solicitud, CampoCritico, Piedra, ComposeBrief } from "@iris/types";
-
-const CRITICOS: CampoCritico[] = [
-  "proposito", "presupuesto", "tipo_pieza", "peso_quilates", "color", "origen",
-];
+import { CAMPOS_CRITICOS } from "@iris/types";
 
 /** Devuelve solo los campos críticos presentes en la solicitud. */
 export function pickKnownCriticos(s: Solicitud): Partial<Solicitud> {
   const out: Record<string, unknown> = {};
-  for (const k of CRITICOS) {
+  for (const k of CAMPOS_CRITICOS) {
     const v = (s as Record<string, unknown>)[k];
     if (v != null) out[k] = v;
   }
