@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createServerClient, upsertLead, addLeadMessage, matchInventory } from "@iris/db";
-import { runIris, createChatModel, extractRequest, createComposerModel, composeReply, type IrisDeps } from "@iris/agent";
+import { runIris, createChatModel, extractRequest, createComposerModel, composeReply, forgetUser, type IrisDeps } from "@iris/agent";
 import { sendTelegramMessage } from "@/lib/telegram/send";
 import { parseTelegramUpdate } from "@/lib/telegram/parse";
+import { parseCommand } from "@/lib/telegram/commands";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -17,6 +18,29 @@ export async function POST(request: Request) {
 
   const parsed = parseTelegramUpdate(await request.json());
   if (!parsed) return NextResponse.json({ ok: true });
+
+  // Los comandos se manejan antes del pipeline normal (no se guardan como mensajes).
+  const command = parseCommand(parsed.text);
+  if (command?.name === "olvidar") {
+    if (!command.confirm) {
+      await sendTelegramMessage(
+        parsed.chatId,
+        "⚠️ Esto borra de forma permanente toda nuestra conversación y tus datos.\n\nSi estás seguro, responde: /olvidar confirmar"
+      );
+    } else {
+      try {
+        await forgetUser(parsed.telegramUserId);
+        await sendTelegramMessage(
+          parsed.chatId,
+          "Listo, borré toda tu información y nuestra conversación. Si me escribes de nuevo, empezamos de cero. 👋"
+        );
+      } catch (err) {
+        console.error("[iris] error procesando /olvidar:", err);
+        await sendTelegramMessage(parsed.chatId, "Hubo un error al borrar tus datos. Intenta de nuevo en un momento.");
+      }
+    }
+    return NextResponse.json({ ok: true });
+  }
 
   const db = createServerClient();
   const model = createChatModel();
