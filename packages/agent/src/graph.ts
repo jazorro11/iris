@@ -1,10 +1,11 @@
 import { StateGraph, START, END, type BaseCheckpointSaver } from "@langchain/langgraph";
-import type { Solicitud, EstadoLead, LeadRow, Piedra } from "@iris/types";
+import type { Solicitud, EstadoLead, LeadRow, Piedra, ComposeBrief } from "@iris/types";
 import { buildLeadRow } from "@iris/db";
 import { IrisState, type State } from "./state.js";
 import { evaluarEstado, MAX_RONDAS } from "./request.js";
 import { buildClarificationMessage } from "./questions.js";
 import { getCheckpointer } from "./checkpointer.js";
+import { buildComposeBrief } from "./brief.js";
 
 export interface IrisDeps {
   extract: (text: string) => Promise<Solicitud>;
@@ -12,6 +13,8 @@ export interface IrisDeps {
   notifySeller: (text: string) => Promise<void>;
   /** Opcional: propone piedras del inventario que coincidan. */
   matchInventory?: (solicitud: Solicitud) => Promise<Piedra[]>;
+  /** Opcional: redacta el mensaje al cliente desde el brief. Si falta o falla, se usan plantillas. */
+  compose?: (brief: ComposeBrief) => Promise<string>;
   /** Por defecto PostgresSaver; en tests se inyecta MemorySaver. */
   checkpointer?: BaseCheckpointSaver;
 }
@@ -42,6 +45,17 @@ export function buildPiedrasPropuestas(piedras: Piedra[]): string {
   return `\n\nTengo estas piedras que podrían encajar:\n${items.join("\n")}`;
 }
 
+async function composeOrFallback(deps: IrisDeps, brief: ComposeBrief, fallback: string): Promise<string> {
+  if (!deps.compose) return fallback;
+  try {
+    const out = await deps.compose(brief);
+    return out && out.trim() ? out : fallback;
+  } catch (err) {
+    console.error("[iris] compose falló, usando plantilla:", err);
+    return fallback;
+  }
+}
+
 async function extractorNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
   const partial = await deps.extract(state.inputText);
   return { solicitud: partial };
@@ -58,11 +72,17 @@ function route(state: State): "preguntar" | "persistir" {
 }
 
 async function preguntarNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
-  const base = buildClarificationMessage(state.camposFaltantes);
-  // Proponer piedras ya, aunque la solicitud aún no esté completa (filtrarPiedras
-  // devuelve [] si todavía no hay forma/peso/presupuesto, así que no genera ruido).
   const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
-  return { reply: base + buildPiedrasPropuestas(piedras) };
+  const fallback = buildClarificationMessage(state.camposFaltantes) + buildPiedrasPropuestas(piedras);
+  const brief = buildComposeBrief({
+    intent: "aclarar",
+    userMessage: state.inputText,
+    solicitud: state.solicitud,
+    missing: state.camposFaltantes,
+    stones: piedras,
+  });
+  const reply = await composeOrFallback(deps, brief, fallback);
+  return { reply };
 }
 
 async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
@@ -78,10 +98,19 @@ async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<Stat
   const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
   const propuesta = buildPiedrasPropuestas(piedras);
   await deps.notifySeller(buildSellerSummary(row) + propuesta);
-  const reply = estadoFinal === "completo"
+  const fallbackBase = estadoFinal === "completo"
     ? "¡Gracias! Registré tu solicitud y un asesor de Méraldi te contactará pronto. 💚"
     : "Gracias por la información. Un asesor de Méraldi continuará contigo para afinar los detalles.";
-  return { reply: reply + propuesta, estado: estadoFinal };
+  const brief = buildComposeBrief({
+    intent: "cerrar",
+    userMessage: state.inputText,
+    solicitud: state.solicitud,
+    missing: state.camposFaltantes,
+    stones: piedras,
+    cierre: estadoFinal,
+  });
+  const reply = await composeOrFallback(deps, brief, fallbackBase + propuesta);
+  return { reply, estado: estadoFinal };
 }
 
 export async function buildGraph(deps: IrisDeps) {

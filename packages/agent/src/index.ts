@@ -4,3 +4,5 @@ export { extractRequest, EXTRACTION_SYSTEM_PROMPT, type StructuredModel } from "
 export { getCheckpointer } from "./checkpointer.js";
 export { mergeRequest, missingCriticalFields, isComplete, evaluarEstado, MAX_RONDAS } from "./request.js";
 export { IrisState, type State } from "./state.js";
+export { composeReply, createComposerModel, COMPOSE_SYSTEM_PROMPT, renderBriefForPrompt, type ChatModel } from "./composer.js";
+export { buildComposeBrief, pickKnownCriticos } from "./brief.js";
