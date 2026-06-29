@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createServerClient, upsertLead, addLeadMessage, matchInventory } from "@iris/db";
+import { createServerClient, upsertLead, addLeadMessage, matchInventory, getRecentMessages } from "@iris/db";
 import { runIris, createChatModel, extractRequest, createComposerModel, composeReply, forgetUser, type IrisDeps } from "@iris/agent";
-import { sendTelegramMessage } from "@/lib/telegram/send";
+import { sendTelegramMessage, sendTelegramPhoto } from "@/lib/telegram/send";
 import { parseTelegramUpdate } from "@/lib/telegram/parse";
 import { parseCommand } from "@/lib/telegram/commands";
 
@@ -48,6 +48,9 @@ export async function POST(request: Request) {
   const sellerRaw = process.env.SELLER_TELEGRAM_CHAT_ID;
   const sellerChatId = sellerRaw && sellerRaw.trim() ? Number(sellerRaw) : NaN;
 
+  // Historial ANTES de guardar el mensaje actual (para que getHistory no lo incluya).
+  const previas = await getRecentMessages(db, parsed.telegramUserId, 6);
+
   const deps: IrisDeps = {
     extract: (text) => extractRequest(model, text),
     saveLead: (row) => upsertLead(db, row),
@@ -56,13 +59,15 @@ export async function POST(request: Request) {
     },
     matchInventory: (solicitud) => matchInventory(db, solicitud),
     compose: (brief) => composeReply(composerModel, brief),
+    getHistory: async () => previas,
   };
 
   try {
     await addLeadMessage(db, parsed.telegramUserId, "comprador", parsed.text);
-    const { reply } = await runIris(deps, parsed);
+    const { reply, mediaUrl } = await runIris(deps, parsed);
     await addLeadMessage(db, parsed.telegramUserId, "agente", reply);
-    await sendTelegramMessage(parsed.chatId, reply);
+    const sentPhoto = mediaUrl ? await sendTelegramPhoto(parsed.chatId, mediaUrl, reply) : false;
+    if (!sentPhoto) await sendTelegramMessage(parsed.chatId, reply);
   } catch (err) {
     console.error("[iris] error procesando mensaje:", err);
     await sendTelegramMessage(parsed.chatId, "Hubo un error procesando tu mensaje. Intenta de nuevo.");

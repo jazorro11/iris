@@ -19,3 +19,25 @@ export async function sendTelegramMessage(
     console.error("[telegram] sendMessage falló:", res.status, body);
   }
 }
+
+export async function sendTelegramPhoto(
+  chatId: number,
+  photoUrl: string,
+  caption?: string
+): Promise<boolean> {
+  if (!BOT_TOKEN) {
+    console.warn("[telegram] TELEGRAM_BOT_TOKEN no configurado, se omite el envío");
+    return false;
+  }
+  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, photo: photoUrl, ...(caption ? { caption } : {}) }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    console.error("[telegram] sendPhoto falló:", res.status, body);
+    return false;
+  }
+  return true;
+}

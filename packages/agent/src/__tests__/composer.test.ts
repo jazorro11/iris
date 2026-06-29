@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderBriefForPrompt, composeReply, COMPOSE_SYSTEM_PROMPT, type ChatModel } from "../composer.js";
 import type { ComposeBrief, Piedra } from "@iris/types";
+import { GUIA_HECHOS } from "../guia.js";
 
 const piedra: Piedra = {
   id: "a", nombre: "Esmeralda cuadrada 9.04 ct", forma: "corte_esmeralda",
@@ -49,4 +50,41 @@ test("composeReply tolera content no-string", async () => {
   const fake: ChatModel = { invoke: async () => ({ content: 123 }) };
   const out = await composeReply(fake, brief);
   assert.equal(out, "123");
+});
+
+test("COMPOSE_SYSTEM_PROMPT incorpora la guía y las reglas clave", () => {
+  assert.ok(COMPOSE_SYSTEM_PROMPT.includes(GUIA_HECHOS), "debe inyectar GUIA_HECHOS");
+  assert.match(COMPOSE_SYSTEM_PROMPT, /responde|respónde/i);          // educar/responder
+  assert.match(COMPOSE_SYSTEM_PROMPT, /patrimonio tangible/i);        // honestidad valorización
+  assert.match(COMPOSE_SYSTEM_PROMPT, /total/i);                      // cotiza total de la piedra
+  assert.match(COMPOSE_SYSTEM_PROMPT, /asesor/i);                     // regla de reserva del asesor
+  assert.match(COMPOSE_SYSTEM_PROMPT, /dato t[eé]cnico NUEVO|nuevo/i);// insistir con dato nuevo
+});
+
+test("renderBriefForPrompt incluye precio total, atributos técnicos e historial", () => {
+  const piedraRica: Piedra = {
+    id: "z", nombre: "Esmeralda Muzo 1.26 ct", forma: "corte_esmeralda",
+    peso_ct: 1.26, precio_usd_ct: 5800, cantidad_piedras: 1,
+    media_url: "http://x/z.jpg", disponible: true, notas: "selección Muzo",
+    color: "verde vívido", origen: "Muzo", claridad: "jardín leve", tratamiento: "menor",
+  };
+  const txt = renderBriefForPrompt({
+    intent: "aclarar",
+    userMessage: "¿se valoriza?",
+    known: { proposito: "inversion_patrimonio" },
+    missing: ["color"],
+    stones: [piedraRica],
+    presupuesto: { max: 8000, moneda: "USD" },
+    history: [
+      { rol: "comprador", texto: "quiero una esmeralda de 1 a 2 ct" },
+      { rol: "agente", texto: "te recomiendo la de 1.26 ct" },
+    ],
+  });
+  assert.match(txt, /Esmeralda Muzo 1\.26/);
+  assert.match(txt, /7308/);                 // 1.26 * 5800 = 7308 (total)
+  assert.match(txt, /Muzo/);                 // origen
+  assert.match(txt, /verde v[ií]vido/);      // color
+  assert.match(txt, /foto: s[ií]/i);         // hay media_url
+  assert.match(txt, /quiero una esmeralda de 1 a 2 ct/); // historial
+  assert.match(txt, /8000/);                 // presupuesto
 });

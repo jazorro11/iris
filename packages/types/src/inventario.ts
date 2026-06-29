@@ -19,4 +19,9 @@ export interface Piedra {
   media_url: string | null;
   disponible: boolean;
   notas: string | null;
+  /** Atributos técnicos opcionales (presentación; el match no los usa aún). */
+  color?: string | null;
+  origen?: string | null;
+  claridad?: string | null;
+  tratamiento?: string | null;
 }

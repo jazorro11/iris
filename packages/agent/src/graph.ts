@@ -15,6 +15,8 @@ export interface IrisDeps {
   matchInventory?: (solicitud: Solicitud) => Promise<Piedra[]>;
   /** Opcional: redacta el mensaje al cliente desde el brief. Si falta o falla, se usan plantillas. */
   compose?: (brief: ComposeBrief) => Promise<string>;
+  /** Opcional: últimos mensajes de la conversación, en orden cronológico. */
+  getHistory?: () => Promise<{ rol: "comprador" | "agente"; texto: string }[]>;
   /** Por defecto PostgresSaver; en tests se inyecta MemorySaver. */
   checkpointer?: BaseCheckpointSaver;
 }
@@ -74,15 +76,17 @@ function route(state: State): "preguntar" | "persistir" {
 async function preguntarNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
   const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
   const fallback = buildClarificationMessage(state.camposFaltantes) + buildPiedrasPropuestas(piedras);
+  const history = deps.getHistory ? await deps.getHistory() : [];
   const brief = buildComposeBrief({
     intent: "aclarar",
     userMessage: state.inputText,
     solicitud: state.solicitud,
     missing: state.camposFaltantes,
     stones: piedras,
+    history,
   });
   const reply = await composeOrFallback(deps, brief, fallback);
-  return { reply };
+  return { reply, mediaUrl: piedras[0]?.media_url ?? null };
 }
 
 async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
@@ -101,16 +105,18 @@ async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<Stat
   const fallbackBase = estadoFinal === "completo"
     ? "¡Gracias! Registré tu solicitud y un asesor de Méraldi te contactará pronto. 💚"
     : "Gracias por la información. Un asesor de Méraldi continuará contigo para afinar los detalles.";
+  const history = deps.getHistory ? await deps.getHistory() : [];
   const brief = buildComposeBrief({
     intent: "cerrar",
     userMessage: state.inputText,
     solicitud: state.solicitud,
     missing: state.camposFaltantes,
     stones: piedras,
+    history,
     cierre: estadoFinal,
   });
   const reply = await composeOrFallback(deps, brief, fallbackBase + propuesta);
-  return { reply, estado: estadoFinal };
+  return { reply, estado: estadoFinal, mediaUrl: piedras[0]?.media_url ?? null };
 }
 
 export async function buildGraph(deps: IrisDeps) {
@@ -131,7 +137,7 @@ export async function buildGraph(deps: IrisDeps) {
 export async function runIris(
   deps: IrisDeps,
   input: { telegramUserId: number; chatId: number; telegramUsername?: string; text: string }
-): Promise<{ reply: string; estado: EstadoLead }> {
+): Promise<{ reply: string; estado: EstadoLead; mediaUrl: string | null }> {
   const app = await buildGraph(deps);
   const final = (await app.invoke(
     {
@@ -143,5 +149,5 @@ export async function runIris(
     },
     { configurable: { thread_id: String(input.telegramUserId) } }
   )) as State;
-  return { reply: final.reply, estado: final.estado };
+  return { reply: final.reply, estado: final.estado, mediaUrl: final.mediaUrl };
 }

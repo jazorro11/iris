@@ -52,3 +52,20 @@ export async function addLeadMessage(
     .insert({ telegram_user_id: telegramUserId, rol, texto });
   if (error) throw error;
 }
+
+/** Últimos `limit` mensajes del thread, en orden cronológico ascendente. */
+export async function getRecentMessages(
+  db: DbClient,
+  telegramUserId: number,
+  limit = 6
+): Promise<{ rol: "comprador" | "agente"; texto: string }[]> {
+  const { data, error } = await db
+    .from("lead_messages")
+    .select("rol, texto")
+    .eq("telegram_user_id", telegramUserId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  const rows = (data ?? []) as { rol: "comprador" | "agente"; texto: string }[];
+  return rows.reverse();
+}

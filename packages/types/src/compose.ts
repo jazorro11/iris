@@ -12,6 +12,10 @@ export interface ComposeBrief {
   missing: CampoCritico[];
   /** Piedras reales que encajan (puede ir vacío). */
   stones: Piedra[];
+  /** Presupuesto conocido del cliente (para conectar la recomendación). */
+  presupuesto?: Solicitud["presupuesto"];
+  /** Últimos mensajes de la conversación, en orden cronológico. */
+  history?: { rol: "comprador" | "agente"; texto: string }[];
   /** Presente solo cuando intent="cerrar". */
   cierre?: "completo" | "incompleto";
 }
