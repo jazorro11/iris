@@ -3,7 +3,8 @@
 // Importa por subpath directo (tsx no surfacea el barrel export *).
 import { MemorySaver } from "@langchain/langgraph";
 import { runIris } from "../packages/agent/src/graph.ts";
-import { extractRequest, createChatModel } from "../packages/agent/src/extractor.ts";
+import { extractRequest } from "../packages/agent/src/extractor.ts";
+import { createChatModel } from "../packages/agent/src/model.ts";
 import { createComposerModel, composeReply } from "../packages/agent/src/composer.ts";
 import { matchInventory } from "../packages/db/src/queries/inventario.ts";
 
