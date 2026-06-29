@@ -20,6 +20,7 @@ export const IrisState = Annotation.Root({
   estado: Annotation<EstadoLead>(lastWrite<EstadoLead>("incompleto")),
   camposFaltantes: Annotation<CampoCritico[]>(lastWrite<CampoCritico[]>([])),
   reply: Annotation<string>(lastWrite("")),
+  mediaUrl: Annotation<string | null>(lastWrite<string | null>(null)),
 });
 
 export type State = typeof IrisState.State;

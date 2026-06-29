@@ -86,7 +86,7 @@ async function preguntarNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     history,
   });
   const reply = await composeOrFallback(deps, brief, fallback);
-  return { reply };
+  return { reply, mediaUrl: piedras[0]?.media_url ?? null };
 }
 
 async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
@@ -116,7 +116,7 @@ async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     cierre: estadoFinal,
   });
   const reply = await composeOrFallback(deps, brief, fallbackBase + propuesta);
-  return { reply, estado: estadoFinal };
+  return { reply, estado: estadoFinal, mediaUrl: piedras[0]?.media_url ?? null };
 }
 
 export async function buildGraph(deps: IrisDeps) {
@@ -137,7 +137,7 @@ export async function buildGraph(deps: IrisDeps) {
 export async function runIris(
   deps: IrisDeps,
   input: { telegramUserId: number; chatId: number; telegramUsername?: string; text: string }
-): Promise<{ reply: string; estado: EstadoLead }> {
+): Promise<{ reply: string; estado: EstadoLead; mediaUrl: string | null }> {
   const app = await buildGraph(deps);
   const final = (await app.invoke(
     {
@@ -149,5 +149,5 @@ export async function runIris(
     },
     { configurable: { thread_id: String(input.telegramUserId) } }
   )) as State;
-  return { reply: final.reply, estado: final.estado };
+  return { reply: final.reply, estado: final.estado, mediaUrl: final.mediaUrl };
 }

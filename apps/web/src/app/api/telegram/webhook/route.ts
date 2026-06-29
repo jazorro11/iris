@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient, upsertLead, addLeadMessage, matchInventory } from "@iris/db";
 import { runIris, createChatModel, extractRequest, createComposerModel, composeReply, forgetUser, type IrisDeps } from "@iris/agent";
-import { sendTelegramMessage } from "@/lib/telegram/send";
+import { sendTelegramMessage, sendTelegramPhoto } from "@/lib/telegram/send";
 import { parseTelegramUpdate } from "@/lib/telegram/parse";
 import { parseCommand } from "@/lib/telegram/commands";
 
@@ -60,9 +60,10 @@ export async function POST(request: Request) {
 
   try {
     await addLeadMessage(db, parsed.telegramUserId, "comprador", parsed.text);
-    const { reply } = await runIris(deps, parsed);
+    const { reply, mediaUrl } = await runIris(deps, parsed);
     await addLeadMessage(db, parsed.telegramUserId, "agente", reply);
-    await sendTelegramMessage(parsed.chatId, reply);
+    if (mediaUrl) await sendTelegramPhoto(parsed.chatId, mediaUrl, reply);
+    else await sendTelegramMessage(parsed.chatId, reply);
   } catch (err) {
     console.error("[iris] error procesando mensaje:", err);
     await sendTelegramMessage(parsed.chatId, "Hubo un error procesando tu mensaje. Intenta de nuevo.");
