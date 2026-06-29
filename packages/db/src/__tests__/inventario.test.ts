@@ -121,3 +121,21 @@ test("matchInventory coerciona numeric (string) a number y ordena", async () => 
   assert.equal(typeof r[0].peso_ct, "number");
   assert.deepEqual(r.map((p) => p.id), ["b", "a"]);
 });
+
+test("matchInventory propaga columnas técnicas nuevas (color/origen/claridad/tratamiento)", async () => {
+  const fakeDb = {
+    from: () => ({ select: () => ({ eq: async () => ({
+      data: [
+        { id: "a", nombre: "A", forma: "redondo", peso_ct: "3.09", precio_usd_ct: "1500",
+          cantidad_piedras: "1", media_url: "http://x/a.jpg", disponible: true, notas: "verde Muzo",
+          color: "verde vívido", origen: "Muzo", claridad: "jardín leve", tratamiento: "menor" },
+      ],
+      error: null,
+    }) }) }),
+  } as unknown as DbClient;
+  const r = await matchInventory(fakeDb, { corte: { forma: "redondo" } });
+  assert.equal(r[0].color, "verde vívido");
+  assert.equal(r[0].origen, "Muzo");
+  assert.equal(r[0].claridad, "jardín leve");
+  assert.equal(r[0].tratamiento, "menor");
+});
