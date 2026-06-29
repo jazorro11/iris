@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderBriefForPrompt, composeReply, COMPOSE_SYSTEM_PROMPT, type ChatModel } from "../composer.js";
 import type { ComposeBrief, Piedra } from "@iris/types";
+import { GUIA_HECHOS } from "../guia.js";
 
 const piedra: Piedra = {
   id: "a", nombre: "Esmeralda cuadrada 9.04 ct", forma: "corte_esmeralda",
@@ -49,6 +50,15 @@ test("composeReply tolera content no-string", async () => {
   const fake: ChatModel = { invoke: async () => ({ content: 123 }) };
   const out = await composeReply(fake, brief);
   assert.equal(out, "123");
+});
+
+test("COMPOSE_SYSTEM_PROMPT incorpora la guía y las reglas clave", () => {
+  assert.ok(COMPOSE_SYSTEM_PROMPT.includes(GUIA_HECHOS), "debe inyectar GUIA_HECHOS");
+  assert.match(COMPOSE_SYSTEM_PROMPT, /responde|respónde/i);          // educar/responder
+  assert.match(COMPOSE_SYSTEM_PROMPT, /patrimonio tangible/i);        // honestidad valorización
+  assert.match(COMPOSE_SYSTEM_PROMPT, /total/i);                      // cotiza total de la piedra
+  assert.match(COMPOSE_SYSTEM_PROMPT, /asesor/i);                     // regla de reserva del asesor
+  assert.match(COMPOSE_SYSTEM_PROMPT, /dato t[eé]cnico NUEVO|nuevo/i);// insistir con dato nuevo
 });
 
 test("renderBriefForPrompt incluye precio total, atributos técnicos e historial", () => {
