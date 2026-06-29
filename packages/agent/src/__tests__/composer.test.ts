@@ -50,3 +50,31 @@ test("composeReply tolera content no-string", async () => {
   const out = await composeReply(fake, brief);
   assert.equal(out, "123");
 });
+
+test("renderBriefForPrompt incluye precio total, atributos técnicos e historial", () => {
+  const piedraRica: Piedra = {
+    id: "z", nombre: "Esmeralda Muzo 1.26 ct", forma: "corte_esmeralda",
+    peso_ct: 1.26, precio_usd_ct: 5800, cantidad_piedras: 1,
+    media_url: "http://x/z.jpg", disponible: true, notas: "selección Muzo",
+    color: "verde vívido", origen: "Muzo", claridad: "jardín leve", tratamiento: "menor",
+  };
+  const txt = renderBriefForPrompt({
+    intent: "aclarar",
+    userMessage: "¿se valoriza?",
+    known: { proposito: "inversion_patrimonio" },
+    missing: ["color"],
+    stones: [piedraRica],
+    presupuesto: { max: 8000, moneda: "USD" },
+    history: [
+      { rol: "comprador", texto: "quiero una esmeralda de 1 a 2 ct" },
+      { rol: "agente", texto: "te recomiendo la de 1.26 ct" },
+    ],
+  });
+  assert.match(txt, /Esmeralda Muzo 1\.26/);
+  assert.match(txt, /7308/);                 // 1.26 * 5800 = 7308 (total)
+  assert.match(txt, /Muzo/);                 // origen
+  assert.match(txt, /verde v[ií]vido/);      // color
+  assert.match(txt, /foto: s[ií]/i);         // hay media_url
+  assert.match(txt, /quiero una esmeralda de 1 a 2 ct/); // historial
+  assert.match(txt, /8000/);                 // presupuesto
+});

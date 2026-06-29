@@ -28,15 +28,34 @@ Responde solo con el mensaje para el cliente, en español, sin comillas.`;
 export function renderBriefForPrompt(b: ComposeBrief): string {
   const known = Object.keys(b.known).length ? JSON.stringify(b.known) : "(nada aún)";
   const missing = b.missing.length ? b.missing.join(", ") : "(nada)";
+  const presupuesto = b.presupuesto && Object.keys(b.presupuesto).length
+    ? JSON.stringify(b.presupuesto)
+    : "(no dado)";
   const stones = b.stones.length
-    ? b.stones.map((p) => `- ${p.nombre} (${p.peso_ct} ct, ${p.precio_usd_ct} USD/ct)`).join("\n")
+    ? b.stones.map((p) => {
+        const total = Math.round(p.peso_ct * p.precio_usd_ct);
+        const attrs = [
+          p.color ? `color: ${p.color}` : null,
+          p.origen ? `origen: ${p.origen}` : null,
+          p.claridad ? `claridad: ${p.claridad}` : null,
+          p.tratamiento ? `tratamiento: ${p.tratamiento}` : null,
+          p.notas ? `notas: ${p.notas}` : null,
+          `foto: ${p.media_url ? "sí" : "no"}`,
+        ].filter(Boolean).join("; ");
+        return `- ${p.nombre} (${p.peso_ct} ct, ${p.precio_usd_ct} USD/ct, total ≈ ${total} USD) — ${attrs}`;
+      }).join("\n")
     : "(ninguna)";
+  const history = b.history && b.history.length
+    ? b.history.map((m) => `${m.rol === "comprador" ? "Cliente" : "Iris"}: ${m.texto}`).join("\n")
+    : "(sin historial)";
   return [
     `intent: ${b.intent}`,
     `cliente_dijo: ${b.userMessage}`,
     `ya_sabemos: ${known}`,
+    `presupuesto: ${presupuesto}`,
     `falta_por_preguntar (prioridad): ${missing}`,
     `piedras_que_encajan:\n${stones}`,
+    `historial_reciente:\n${history}`,
     b.cierre ? `cierre: ${b.cierre}` : null,
   ].filter(Boolean).join("\n");
 }

@@ -19,6 +19,7 @@ export function buildComposeBrief(input: {
   missing: CampoCritico[];
   stones: Piedra[];
   cierre?: "completo" | "incompleto";
+  history?: { rol: "comprador" | "agente"; texto: string }[];
 }): ComposeBrief {
   const missingSet = new Set<CampoCritico>(input.missing);
   const knownAll = pickKnownCriticos(input.solicitud);
@@ -32,6 +33,8 @@ export function buildComposeBrief(input: {
     known: known as Partial<Solicitud>,
     missing: input.missing,
     stones: input.stones,
+    presupuesto: input.solicitud.presupuesto,
+    history: input.history ?? [],
     ...(input.cierre ? { cierre: input.cierre } : {}),
   };
 }

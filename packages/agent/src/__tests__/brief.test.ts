@@ -43,3 +43,17 @@ test("buildComposeBrief incluye cierre y stones cuando se pasan", () => {
   assert.equal(brief.cierre, "completo");
   assert.equal(brief.stones[0].nombre, "Cuadrada 9.04 ct");
 });
+
+test("buildComposeBrief copia presupuesto e historial", () => {
+  const brief = buildComposeBrief({
+    intent: "aclarar",
+    userMessage: "hola",
+    solicitud: { presupuesto: { max: 8000, moneda: "USD" } },
+    missing: ["proposito"],
+    stones: [],
+    history: [{ rol: "comprador", texto: "hola" }],
+  });
+  assert.deepEqual(brief.presupuesto, { max: 8000, moneda: "USD" });
+  assert.equal(brief.history?.length, 1);
+  assert.equal(brief.history?.[0].texto, "hola");
+});
