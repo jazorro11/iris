@@ -66,8 +66,8 @@ export async function POST(request: Request) {
     await addLeadMessage(db, parsed.telegramUserId, "comprador", parsed.text);
     const { reply, mediaUrl } = await runIris(deps, parsed);
     await addLeadMessage(db, parsed.telegramUserId, "agente", reply);
-    if (mediaUrl) await sendTelegramPhoto(parsed.chatId, mediaUrl, reply);
-    else await sendTelegramMessage(parsed.chatId, reply);
+    const sentPhoto = mediaUrl ? await sendTelegramPhoto(parsed.chatId, mediaUrl, reply) : false;
+    if (!sentPhoto) await sendTelegramMessage(parsed.chatId, reply);
   } catch (err) {
     console.error("[iris] error procesando mensaje:", err);
     await sendTelegramMessage(parsed.chatId, "Hubo un error procesando tu mensaje. Intenta de nuevo.");

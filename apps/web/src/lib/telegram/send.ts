@@ -24,10 +24,10 @@ export async function sendTelegramPhoto(
   chatId: number,
   photoUrl: string,
   caption?: string
-): Promise<void> {
+): Promise<boolean> {
   if (!BOT_TOKEN) {
     console.warn("[telegram] TELEGRAM_BOT_TOKEN no configurado, se omite el envío");
-    return;
+    return false;
   }
   const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
     method: "POST",
@@ -37,5 +37,7 @@ export async function sendTelegramPhoto(
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     console.error("[telegram] sendPhoto falló:", res.status, body);
+    return false;
   }
+  return true;
 }
