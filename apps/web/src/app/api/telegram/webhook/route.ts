@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerClient, upsertLead, addLeadMessage, matchInventory } from "@iris/db";
+import { createServerClient, upsertLead, addLeadMessage, matchInventory, getRecentMessages } from "@iris/db";
 import { runIris, createChatModel, extractRequest, createComposerModel, composeReply, forgetUser, type IrisDeps } from "@iris/agent";
 import { sendTelegramMessage, sendTelegramPhoto } from "@/lib/telegram/send";
 import { parseTelegramUpdate } from "@/lib/telegram/parse";
@@ -48,6 +48,9 @@ export async function POST(request: Request) {
   const sellerRaw = process.env.SELLER_TELEGRAM_CHAT_ID;
   const sellerChatId = sellerRaw && sellerRaw.trim() ? Number(sellerRaw) : NaN;
 
+  // Historial ANTES de guardar el mensaje actual (para que getHistory no lo incluya).
+  const previas = await getRecentMessages(db, parsed.telegramUserId, 6);
+
   const deps: IrisDeps = {
     extract: (text) => extractRequest(model, text),
     saveLead: (row) => upsertLead(db, row),
@@ -56,6 +59,7 @@ export async function POST(request: Request) {
     },
     matchInventory: (solicitud) => matchInventory(db, solicitud),
     compose: (brief) => composeReply(composerModel, brief),
+    getHistory: async () => previas,
   };
 
   try {
