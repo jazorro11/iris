@@ -9,3 +9,4 @@ export { IrisState, type State } from "./state.js";
 export { composeReply, createComposerModel, COMPOSE_SYSTEM_PROMPT, renderBriefForPrompt, type ChatModel } from "./composer.js";
 export { buildComposeBrief, pickKnownCriticos } from "./brief.js";
 export { GUIA_HECHOS } from "./guia.js";
+export { BIBLIA_COMPLETA } from "./knowledge/biblia.js";
