@@ -57,3 +57,17 @@ test("buildComposeBrief copia presupuesto e historial", () => {
   assert.equal(brief.history?.length, 1);
   assert.equal(brief.history?.[0].texto, "hola");
 });
+
+test("buildComposeBrief soporta intent asesorar y copia preguntaProfunda", () => {
+  const brief = buildComposeBrief({
+    intent: "asesorar",
+    userMessage: "¿qué es el pleocroísmo?",
+    solicitud: { proposito: "coleccion" },
+    missing: [],
+    stones: [],
+    preguntaProfunda: true,
+  });
+  assert.equal(brief.intent, "asesorar");
+  assert.equal(brief.preguntaProfunda, true);
+  assert.equal(brief.cierre, undefined);
+});

@@ -13,13 +13,14 @@ export function pickKnownCriticos(s: Solicitud): Partial<Solicitud> {
 
 /** Ensambla el brief de solo-hechos para el redactor. `known` excluye lo que sigue faltando. */
 export function buildComposeBrief(input: {
-  intent: "aclarar" | "cerrar";
+  intent: "aclarar" | "cerrar" | "asesorar" | "handoff";
   userMessage: string;
   solicitud: Solicitud;
   missing: CampoCritico[];
   stones: Piedra[];
   cierre?: "completo" | "incompleto";
   history?: { rol: "comprador" | "agente"; texto: string }[];
+  preguntaProfunda?: boolean;
 }): ComposeBrief {
   const missingSet = new Set<CampoCritico>(input.missing);
   const knownAll = pickKnownCriticos(input.solicitud);
@@ -36,5 +37,6 @@ export function buildComposeBrief(input: {
     presupuesto: input.solicitud.presupuesto,
     history: input.history ?? [],
     ...(input.cierre ? { cierre: input.cierre } : {}),
+    ...(input.preguntaProfunda ? { preguntaProfunda: true } : {}),
   };
 }
