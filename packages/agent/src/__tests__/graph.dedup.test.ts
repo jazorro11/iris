@@ -34,6 +34,16 @@ test("no repite la recomendación de una misma piedra en turnos siguientes", asy
   assert.ok(!t2.reply.includes("Cuadrada 3.61 ct"), "turno 2 no debe volver a listar la piedra");
 });
 
+test("si el cliente PIDE la foto explícitamente, se reenvía aunque ya se haya recomendado", async () => {
+  const d = deps();
+  const t1 = await runIris(d, { telegramUserId: 3, chatId: 3, text: "cuadrada de 3-4 ct" });
+  assert.equal(t1.mediaUrl, "http://x/a.jpg");
+
+  // El cliente pide la foto de una piedra ya recomendada → el dedup NO debe bloquearla.
+  const t2 = await runIris(d, { telegramUserId: 3, chatId: 3, text: "¿me mandas la foto?" });
+  assert.equal(t2.mediaUrl, "http://x/a.jpg", "petición explícita de foto reenvía la imagen");
+});
+
 test("una piedra nueva que aparece después sí se recomienda (no se sobre-suprime)", async () => {
   const piedraB: Piedra = { ...piedra, id: "b", nombre: "Oval 4.10 ct", media_url: "http://x/b.jpg" };
   let stock: Piedra[] = [piedra];

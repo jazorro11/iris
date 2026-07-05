@@ -105,11 +105,21 @@ async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>
   return updates;
 }
 
+/** El cliente pide ver la foto explícitamente (ES/EN). En ese caso el dedup no
+ * aplica: una petición directa no es una recomendación proactiva repetida. */
+const RE_PIDE_FOTO = /\bfotos?\b|\bfotograf|\bim[aá]gen(?:es)?\b|\bph?otos?\b|\bpict/i;
+export function pideFoto(text: string): boolean {
+  return RE_PIDE_FOTO.test(text ?? "");
+}
+
 async function responderNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
   const matches = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
-  // Nunca reenviar una piedra ya recomendada al cliente en esta conversación.
+  // Nunca reenviar una piedra ya recomendada al cliente EN UNA RECOMENDACIÓN PROACTIVA.
+  // Si el cliente pide la foto explícitamente, se reenvía (se salta el dedup).
   const yaRecomendadas = new Set(state.piedrasRecomendadas);
-  const piedras = matches.filter((p) => !yaRecomendadas.has(p.id));
+  const piedras = pideFoto(state.inputText)
+    ? matches
+    : matches.filter((p) => !yaRecomendadas.has(p.id));
   const briefIntent = state.intent.handoff
     ? "handoff" as const
     : state.estado === "completo" ? "asesorar" as const : "aclarar" as const;
