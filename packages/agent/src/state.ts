@@ -1,6 +1,7 @@
 import { Annotation } from "@langchain/langgraph";
 import type { Solicitud, CampoCritico, EstadoLead } from "@iris/types";
 import { mergeRequest } from "./request.js";
+import { type IntentFlags, DEFAULT_INTENT } from "./intent.js";
 
 const lastWrite = <T>(def: T) => ({ reducer: (_p: T, n: T) => n, default: () => def });
 
@@ -21,6 +22,9 @@ export const IrisState = Annotation.Root({
   camposFaltantes: Annotation<CampoCritico[]>(lastWrite<CampoCritico[]>([])),
   reply: Annotation<string>(lastWrite("")),
   mediaUrl: Annotation<string | null>(lastWrite<string | null>(null)),
+  intent: Annotation<IntentFlags>(lastWrite<IntentFlags>(DEFAULT_INTENT)),
+  vendedorNotificado: Annotation<boolean>(lastWrite(false)),
+  handoffNotificado: Annotation<boolean>(lastWrite(false)),
 });
 
 export type State = typeof IrisState.State;
