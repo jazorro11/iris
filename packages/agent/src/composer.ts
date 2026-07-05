@@ -91,10 +91,14 @@ export async function composeReply(model: ChatModel, brief: ComposeBrief): Promi
   const system = brief.preguntaProfunda
     ? `${COMPOSE_SYSTEM_PROMPT}\n\n=== BIBLIA (conocimiento profundo, úsala para responder con fidelidad) ===\n${BIBLIA_COMPLETA}`
     : COMPOSE_SYSTEM_PROMPT;
-  const idioma = brief.idioma ?? "es";
-  const directiva = idioma === "en"
+  // Directiva dura solo cuando el idioma fue detectado (clasificador). En el camino de
+  // fallback (idioma indefinido) no se fuerza, para no imponer español a un cliente en inglés:
+  // la regla de idioma del system prompt y el propio mensaje del cliente lo resuelven.
+  const directiva = brief.idioma === "en"
     ? "WRITE YOUR ENTIRE REPLY IN ENGLISH. The customer is writing in English.\n\n"
-    : "ESCRIBE TODA TU RESPUESTA EN ESPAÑOL.\n\n";
+    : brief.idioma === "es"
+      ? "ESCRIBE TODA TU RESPUESTA EN ESPAÑOL.\n\n"
+      : "";
   const res = await model.invoke([
     { role: "system", content: system },
     { role: "user", content: directiva + renderBriefForPrompt(brief) },
