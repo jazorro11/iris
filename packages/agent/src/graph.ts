@@ -41,10 +41,10 @@ export function buildSellerSummary(row: LeadRow): string {
   return partes.join("\n");
 }
 
-export function buildPiedrasPropuestas(piedras: Piedra[]): string {
+export function buildPiedrasPropuestas(piedras: Piedra[], { includeUrls = false } = {}): string {
   if (piedras.length === 0) return "";
   const items = piedras.map((p) => {
-    const link = p.media_url ? ` — ${p.media_url}` : "";
+    const link = includeUrls && p.media_url ? ` — ${p.media_url}` : "";
     return `• ${p.nombre} (${p.peso_ct} ct, ${p.precio_usd_ct} USD/ct)${link}`;
   });
   return `\n\nTengo estas piedras que podrían encajar:\n${items.join("\n")}`;
@@ -95,7 +95,7 @@ async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>
   const updates: Partial<State> = {};
   if (state.estado === "completo" && !state.vendedorNotificado) {
     const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
-    await deps.notifySeller(buildSellerSummary(row) + buildPiedrasPropuestas(piedras));
+    await deps.notifySeller(buildSellerSummary(row) + buildPiedrasPropuestas(piedras, { includeUrls: true }));
     updates.vendedorNotificado = true;
   }
   if (state.intent.handoff && !state.handoffNotificado) {
