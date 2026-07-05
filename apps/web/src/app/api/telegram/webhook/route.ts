@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerClient, upsertLead, addLeadMessage, matchInventory, getRecentMessages } from "@iris/db";
-import { runIris, createChatModel, extractRequest, createComposerModel, composeReply, forgetUser, type IrisDeps } from "@iris/agent";
+import { runIris, createChatModel, extractRequest, createComposerModel, composeReply, classifyIntent, forgetUser, type IrisDeps } from "@iris/agent";
 import { sendTelegramMessage, sendTelegramPhoto } from "@/lib/telegram/send";
 import { parseTelegramUpdate } from "@/lib/telegram/parse";
 import { parseCommand } from "@/lib/telegram/commands";
@@ -53,6 +53,7 @@ export async function POST(request: Request) {
 
   const deps: IrisDeps = {
     extract: (text) => extractRequest(model, text),
+    classifyIntent: (text) => classifyIntent(model, text),
     saveLead: (row) => upsertLead(db, row),
     notifySeller: async (text) => {
       if (Number.isFinite(sellerChatId)) await sendTelegramMessage(sellerChatId, text);

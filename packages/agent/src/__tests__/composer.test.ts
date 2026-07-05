@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { renderBriefForPrompt, composeReply, COMPOSE_SYSTEM_PROMPT, type ChatModel } from "../composer.js";
 import type { ComposeBrief, Piedra } from "@iris/types";
 import { GUIA_HECHOS } from "../guia.js";
+import { BIBLIA_COMPLETA } from "../knowledge/biblia.js";
 
 const piedra: Piedra = {
   id: "a", nombre: "Esmeralda cuadrada 9.04 ct", forma: "corte_esmeralda",
@@ -87,4 +88,40 @@ test("renderBriefForPrompt incluye precio total, atributos técnicos e historial
   assert.match(txt, /foto: s[ií]/i);         // hay media_url
   assert.match(txt, /quiero una esmeralda de 1 a 2 ct/); // historial
   assert.match(txt, /8000/);                 // presupuesto
+});
+
+test("COMPOSE_SYSTEM_PROMPT incluye la sección de VOZ y la regla de idioma", () => {
+  assert.match(COMPOSE_SYSTEM_PROMPT, /VOZ|voz de M[eé]raldi/i);
+  assert.match(COMPOSE_SYSTEM_PROMPT, /idioma|inglés|español|language/i);
+  assert.match(COMPOSE_SYSTEM_PROMPT, /asesorar/i);   // instrucción para modo asesor
+  assert.match(COMPOSE_SYSTEM_PROMPT, /handoff|cerrar el trato|finaliza/i);
+});
+
+test("composeReply inyecta la biblia cuando preguntaProfunda=true", async () => {
+  let visto: Array<{ role: string; content: string }> = [];
+  const fake: ChatModel = {
+    invoke: async (input) => { visto = input as Array<{ role: string; content: string }>; return { content: "ok" }; },
+  };
+  await composeReply(fake, { ...brief, preguntaProfunda: true });
+  assert.ok(visto[0].content.includes(BIBLIA_COMPLETA), "el system debe incluir la biblia");
+});
+
+test("composeReply NO inyecta la biblia por defecto", async () => {
+  let visto: Array<{ role: string; content: string }> = [];
+  const fake: ChatModel = {
+    invoke: async (input) => { visto = input as Array<{ role: string; content: string }>; return { content: "ok" }; },
+  };
+  await composeReply(fake, brief); // sin preguntaProfunda
+  assert.equal(visto[0].content, COMPOSE_SYSTEM_PROMPT);
+});
+
+test("composeReply antepone directiva dura de idioma inglés al mensaje de usuario cuando brief.idioma='en'", async () => {
+  let visto: Array<{ role: string; content: string }> = [];
+  const fake: ChatModel = {
+    invoke: async (input) => { visto = input as Array<{ role: string; content: string }>; return { content: "ok" }; },
+  };
+  await composeReply(fake, { ...brief, idioma: "en" });
+  assert.equal(visto[0].content, COMPOSE_SYSTEM_PROMPT);
+  assert.match(visto[1].content, /ENGLISH/);
+  assert.match(visto[1].content, /busco una esmeralda de 9 quilates/);
 });

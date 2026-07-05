@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { MemorySaver } from "@langchain/langgraph";
 import { runIris, buildSellerSummary, buildPiedrasPropuestas, type IrisDeps } from "../graph.js";
 import type { LeadRow, Solicitud, Piedra } from "@iris/types";
+import { DEFAULT_INTENT } from "../intent.js";
 
 test("mensaje incompleto pide aclaración y no persiste", async () => {
   const saved: LeadRow[] = [];
@@ -71,9 +72,7 @@ test("la solicitud se completa en el segundo turno → persiste y notifica", asy
   assert.equal(seller.length, 1);
 });
 
-test("tras MAX_RONDAS turnos incompletos persiste como incompleto y notifica", async () => {
-  // rondas acumula +1 por llamada; MAX_RONDAS=4; route dispara persistir cuando rondas >= 4
-  // → la persistencia ocurre exactamente en la 4ª llamada a runIris
+test("no cierra ni persiste tras muchos turnos incompletos (sin guillotina)", async () => {
   const saved: LeadRow[] = [];
   const seller: string[] = [];
   const cp = new MemorySaver();
@@ -83,17 +82,60 @@ test("tras MAX_RONDAS turnos incompletos persiste como incompleto y notifica", a
     notifySeller: async (t) => { seller.push(t); },
     checkpointer: cp,
   };
-  // Turns 1-3: must NOT persist yet
-  for (let i = 0; i < 3; i++) {
-    await runIris(deps, { telegramUserId: 99, chatId: 99, text: "..." });
-    assert.equal(saved.length, 0, `no debería persistir antes de la vuelta ${i + 1}`);
+  for (let i = 0; i < 6; i++) {
+    const { estado } = await runIris(deps, { telegramUserId: 99, chatId: 99, text: "hmm" });
+    assert.equal(estado, "en_aclaracion", `turno ${i + 1} no debe cerrar`);
   }
-  // Turn 4: rondas reaches MAX_RONDAS (4), triggers persistir
-  const last = await runIris(deps, { telegramUserId: 99, chatId: 99, text: "..." });
-  assert.equal(saved.length, 1);
-  assert.equal(saved[0].estado, "incompleto");
+  assert.equal(saved.length, 0, "nunca persiste un lead incompleto sin handoff");
+  assert.equal(seller.length, 0, "nunca notifica sin captura ni handoff");
+});
+
+test("tras completar, sigue conversando y NO re-notifica al vendedor", async () => {
+  const saved: LeadRow[] = [];
+  const seller: string[] = [];
+  const cp = new MemorySaver();
+  const completa = {
+    proposito: "joyeria", tipo_pieza: "gema_tallada", color: { tono: "verde" },
+    presupuesto: { max: 5000, moneda: "USD" }, peso_quilates: { min: 1 }, origen: { pais: "colombia" },
+  } as const;
+  const deps: IrisDeps = {
+    extract: async () => ({ ...completa }),
+    saveLead: async (r) => { saved.push(r); return { id: "lead-1" }; },
+    notifySeller: async (t) => { seller.push(t); },
+    checkpointer: cp,
+  };
+  await runIris(deps, { telegramUserId: 7, chatId: 7, text: "esmeralda verde tallada de Colombia, 1ct, 5000 USD" });
+  await runIris(deps, { telegramUserId: 7, chatId: 7, text: "¿y el jardín le resta valor?" });
+  assert.equal(seller.length, 1, "el vendedor se notifica una sola vez");
+});
+
+test("handoff notifica al vendedor con aviso distinto", async () => {
+  const seller: string[] = [];
+  const deps: IrisDeps = {
+    extract: async () => ({ proposito: "joyeria" }),
+    saveLead: async () => ({ id: "x" }),
+    notifySeller: async (t) => { seller.push(t); },
+    classifyIntent: async () => ({ handoff: true, preguntaProfunda: false, idioma: "es" }),
+    checkpointer: new MemorySaver(),
+  };
+  await runIris(deps, { telegramUserId: 12, chatId: 12, text: "quiero comprarla, ¿cómo pago?" });
   assert.equal(seller.length, 1);
-  assert.equal(last.estado, "incompleto");
+  assert.match(seller[0], /cerrar|compra|certificado|joya/i);
+});
+
+test("sin classifyIntent, el intent cae a DEFAULT (fallback determinista)", async () => {
+  let vistoBrief = false;
+  const deps: IrisDeps = {
+    extract: async () => ({ proposito: "joyeria" }),
+    saveLead: async () => ({ id: "x" }),
+    notifySeller: async () => {},
+    compose: async (brief) => { vistoBrief = brief.preguntaProfunda !== true; return "ok"; },
+    checkpointer: new MemorySaver(),
+  };
+  const { reply } = await runIris(deps, { telegramUserId: 13, chatId: 13, text: "hola" });
+  assert.equal(reply, "ok");
+  assert.ok(vistoBrief, "sin clasificador, preguntaProfunda no debe activarse");
+  assert.deepEqual(DEFAULT_INTENT, { handoff: false, preguntaProfunda: false, idioma: "es" });
 });
 
 test("buildSellerSummary incluye el id de Telegram y el estado", () => {

@@ -2,10 +2,11 @@ import { StateGraph, START, END, type BaseCheckpointSaver } from "@langchain/lan
 import type { Solicitud, EstadoLead, LeadRow, Piedra, ComposeBrief } from "@iris/types";
 import { buildLeadRow } from "@iris/db";
 import { IrisState, type State } from "./state.js";
-import { evaluarEstado, MAX_RONDAS } from "./request.js";
+import { evaluarEstado } from "./request.js";
 import { buildClarificationMessage } from "./questions.js";
 import { getCheckpointer } from "./checkpointer.js";
 import { buildComposeBrief } from "./brief.js";
+import { type IntentFlags, DEFAULT_INTENT } from "./intent.js";
 
 export interface IrisDeps {
   extract: (text: string) => Promise<Solicitud>;
@@ -17,6 +18,8 @@ export interface IrisDeps {
   compose?: (brief: ComposeBrief) => Promise<string>;
   /** Opcional: últimos mensajes de la conversación, en orden cronológico. */
   getHistory?: () => Promise<{ rol: "comprador" | "agente"; texto: string }[]>;
+  /** Opcional: clasifica el mensaje en {handoff, preguntaProfunda}. Sin ella, se usa DEFAULT_INTENT. */
+  classifyIntent?: (text: string) => Promise<IntentFlags>;
   /** Por defecto PostgresSaver; en tests se inyecta MemorySaver. */
   checkpointer?: BaseCheckpointSaver;
 }
@@ -67,29 +70,19 @@ function validadorNode(state: State): Partial<State> {
   return evaluarEstado(state.solicitud);
 }
 
-function route(state: State): "preguntar" | "persistir" {
-  if (state.estado === "completo") return "persistir";
-  if (state.rondas >= MAX_RONDAS) return "persistir";
-  return "preguntar";
+async function clasificadorNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
+  if (!deps.classifyIntent) return { intent: DEFAULT_INTENT };
+  try {
+    return { intent: await deps.classifyIntent(state.inputText) };
+  } catch (err) {
+    console.error("[iris] classifyIntent falló, usando DEFAULT:", err);
+    return { intent: DEFAULT_INTENT };
+  }
 }
 
-async function preguntarNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
-  const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
-  const fallback = buildClarificationMessage(state.camposFaltantes) + buildPiedrasPropuestas(piedras);
-  const history = deps.getHistory ? await deps.getHistory() : [];
-  const brief = buildComposeBrief({
-    intent: "aclarar",
-    userMessage: state.inputText,
-    solicitud: state.solicitud,
-    missing: state.camposFaltantes,
-    stones: piedras,
-    history,
-  });
-  const reply = await composeOrFallback(deps, brief, fallback);
-  return { reply, mediaUrl: piedras[0]?.media_url ?? null };
-}
-
-async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
+async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
+  const debePersistir = state.estado === "completo" || state.intent.handoff;
+  if (!debePersistir) return {};
   const estadoFinal: EstadoLead = state.estado === "completo" ? "completo" : "incompleto";
   const row = buildLeadRow({
     telegramUserId: state.telegramUserId,
@@ -99,24 +92,43 @@ async function persistirNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     camposFaltantes: state.camposFaltantes,
   });
   await deps.saveLead(row);
+  const updates: Partial<State> = {};
+  if (state.estado === "completo" && !state.vendedorNotificado) {
+    const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
+    await deps.notifySeller(buildSellerSummary(row) + buildPiedrasPropuestas(piedras));
+    updates.vendedorNotificado = true;
+  }
+  if (state.intent.handoff && !state.handoffNotificado) {
+    await deps.notifySeller("🤝 Cliente quiere cerrar el trato (compra / certificado / joya a medida):\n" + buildSellerSummary(row));
+    updates.handoffNotificado = true;
+  }
+  return updates;
+}
+
+async function responderNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
   const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
-  const propuesta = buildPiedrasPropuestas(piedras);
-  await deps.notifySeller(buildSellerSummary(row) + propuesta);
-  const fallbackBase = estadoFinal === "completo"
-    ? "¡Gracias! Registré tu solicitud y un asesor de Méraldi te contactará pronto. 💚"
-    : "Gracias por la información. Un asesor de Méraldi continuará contigo para afinar los detalles.";
+  const briefIntent = state.intent.handoff
+    ? "handoff" as const
+    : state.estado === "completo" ? "asesorar" as const : "aclarar" as const;
+  const fallback =
+    briefIntent === "handoff"
+      ? "¡Perfecto! Un asesor de Méraldi te contactará para finalizar. 💚" + buildPiedrasPropuestas(piedras)
+      : briefIntent === "asesorar"
+        ? "Con gusto sigo ayudándote. ¿Qué más te gustaría saber?" + buildPiedrasPropuestas(piedras)
+        : buildClarificationMessage(state.camposFaltantes) + buildPiedrasPropuestas(piedras);
   const history = deps.getHistory ? await deps.getHistory() : [];
   const brief = buildComposeBrief({
-    intent: "cerrar",
+    intent: briefIntent,
     userMessage: state.inputText,
     solicitud: state.solicitud,
     missing: state.camposFaltantes,
     stones: piedras,
     history,
-    cierre: estadoFinal,
+    preguntaProfunda: state.intent.preguntaProfunda,
+    idioma: state.intent.idioma,
   });
-  const reply = await composeOrFallback(deps, brief, fallbackBase + propuesta);
-  return { reply, estado: estadoFinal, mediaUrl: piedras[0]?.media_url ?? null };
+  const reply = await composeOrFallback(deps, brief, fallback);
+  return { reply, mediaUrl: piedras[0]?.media_url ?? null };
 }
 
 export async function buildGraph(deps: IrisDeps) {
@@ -124,13 +136,15 @@ export async function buildGraph(deps: IrisDeps) {
   const graph = new StateGraph(IrisState)
     .addNode("extractor", (s: State) => extractorNode(s, deps))
     .addNode("validador", validadorNode)
-    .addNode("preguntar", (s: State) => preguntarNode(s, deps))
-    .addNode("persistir", (s: State) => persistirNode(s, deps))
+    .addNode("clasificador", (s: State) => clasificadorNode(s, deps))
+    .addNode("efectos", (s: State) => efectosNode(s, deps))
+    .addNode("responder", (s: State) => responderNode(s, deps))
     .addEdge(START, "extractor")
     .addEdge("extractor", "validador")
-    .addConditionalEdges("validador", route, { preguntar: "preguntar", persistir: "persistir" })
-    .addEdge("preguntar", END)
-    .addEdge("persistir", END);
+    .addEdge("validador", "clasificador")
+    .addEdge("clasificador", "efectos")
+    .addEdge("efectos", "responder")
+    .addEdge("responder", END);
   return graph.compile({ checkpointer });
 }
 
