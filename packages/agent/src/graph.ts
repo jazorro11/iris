@@ -106,7 +106,10 @@ async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>
 }
 
 async function responderNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
-  const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
+  const matches = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
+  // Nunca reenviar una piedra ya recomendada al cliente en esta conversación.
+  const yaRecomendadas = new Set(state.piedrasRecomendadas);
+  const piedras = matches.filter((p) => !yaRecomendadas.has(p.id));
   const briefIntent = state.intent.handoff
     ? "handoff" as const
     : state.estado === "completo" ? "asesorar" as const : "aclarar" as const;
@@ -128,7 +131,11 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     idioma: state.intent.idioma,
   });
   const reply = await composeOrFallback(deps, brief, fallback);
-  return { reply, mediaUrl: piedras[0]?.media_url ?? null };
+  return {
+    reply,
+    mediaUrl: piedras[0]?.media_url ?? null,
+    piedrasRecomendadas: piedras.map((p) => p.id),
+  };
 }
 
 export async function buildGraph(deps: IrisDeps) {

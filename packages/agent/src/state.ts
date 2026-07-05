@@ -25,6 +25,12 @@ export const IrisState = Annotation.Root({
   intent: Annotation<IntentFlags>(lastWrite<IntentFlags>(DEFAULT_INTENT)),
   vendedorNotificado: Annotation<boolean>(lastWrite(false)),
   handoffNotificado: Annotation<boolean>(lastWrite(false)),
+  /** IDs de inventario ya recomendados al cliente en esta conversación.
+   * Acumula (unión sin duplicados) para no reenviar la misma piedra dos veces. */
+  piedrasRecomendadas: Annotation<string[]>({
+    reducer: (p, n) => [...new Set([...(p ?? []), ...(n ?? [])])],
+    default: () => [],
+  }),
 });
 
 export type State = typeof IrisState.State;
