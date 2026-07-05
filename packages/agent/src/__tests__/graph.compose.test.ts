@@ -25,7 +25,7 @@ test("aclaración: compose recibe el brief correcto y su salida es el reply", as
   assert.ok(b1.missing.includes("presupuesto"));
 });
 
-test("cierre: compose recibe intent=cerrar y cierre=completo", async () => {
+test("completo (sin handoff): compose recibe intent=asesorar y sigue conversando", async () => {
   const saved: LeadRow[] = [];
   let recibido: ComposeBrief | null = null;
   const deps: IrisDeps = {
@@ -36,7 +36,7 @@ test("cierre: compose recibe intent=cerrar y cierre=completo", async () => {
     }),
     saveLead: async (r) => { saved.push(r); return { id: "lead-1" }; },
     notifySeller: async () => {},
-    compose: async (b) => { recibido = b; return "¡Gracias! Un asesor te contactará."; },
+    compose: async (b) => { recibido = b; return "¡Gracias! Sigo por aquí para lo que necesites."; },
     checkpointer: new MemorySaver(),
   };
   const { reply, estado } = await runIris(deps, {
@@ -44,9 +44,9 @@ test("cierre: compose recibe intent=cerrar y cierre=completo", async () => {
   });
   assert.equal(estado, "completo");
   assert.equal(saved.length, 1);
-  assert.equal(reply, "¡Gracias! Un asesor te contactará.");
-  assert.equal(recibido!.intent, "cerrar");
-  assert.equal(recibido!.cierre, "completo");
+  assert.equal(reply, "¡Gracias! Sigo por aquí para lo que necesites.");
+  assert.equal(recibido!.intent, "asesorar");
+  assert.equal(recibido!.cierre, undefined);
 });
 
 test("fallback: si compose lanza, usa la plantilla y el lead igual se guarda", async () => {
@@ -67,5 +67,5 @@ test("fallback: si compose lanza, usa la plantilla y el lead igual se guarda", a
   });
   assert.equal(estado, "completo");
   assert.equal(saved.length, 1);
-  assert.match(reply, /asesor de Méraldi/); // cayó a la plantilla de cierre
+  assert.match(reply, /sigo ayudándote/i); // cayó a la plantilla de "asesorar"
 });
