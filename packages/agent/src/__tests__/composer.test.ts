@@ -114,3 +114,14 @@ test("composeReply NO inyecta la biblia por defecto", async () => {
   await composeReply(fake, brief); // sin preguntaProfunda
   assert.equal(visto[0].content, COMPOSE_SYSTEM_PROMPT);
 });
+
+test("composeReply antepone directiva dura de idioma inglés al mensaje de usuario cuando brief.idioma='en'", async () => {
+  let visto: Array<{ role: string; content: string }> = [];
+  const fake: ChatModel = {
+    invoke: async (input) => { visto = input as Array<{ role: string; content: string }>; return { content: "ok" }; },
+  };
+  await composeReply(fake, { ...brief, idioma: "en" });
+  assert.equal(visto[0].content, COMPOSE_SYSTEM_PROMPT);
+  assert.match(visto[1].content, /ENGLISH/);
+  assert.match(visto[1].content, /busco una esmeralda de 9 quilates/);
+});

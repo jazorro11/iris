@@ -20,4 +20,6 @@ export interface ComposeBrief {
   cierre?: "completo" | "incompleto";
   /** true → el redactor debe apoyarse en la biblia completa (pregunta gemológica profunda). */
   preguntaProfunda?: boolean;
+  /** Idioma detectado del mensaje del cliente (clasificador determinista). Por defecto "es". */
+  idioma?: "es" | "en";
 }

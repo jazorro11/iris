@@ -91,9 +91,13 @@ export async function composeReply(model: ChatModel, brief: ComposeBrief): Promi
   const system = brief.preguntaProfunda
     ? `${COMPOSE_SYSTEM_PROMPT}\n\n=== BIBLIA (conocimiento profundo, úsala para responder con fidelidad) ===\n${BIBLIA_COMPLETA}`
     : COMPOSE_SYSTEM_PROMPT;
+  const idioma = brief.idioma ?? "es";
+  const directiva = idioma === "en"
+    ? "WRITE YOUR ENTIRE REPLY IN ENGLISH. The customer is writing in English.\n\n"
+    : "ESCRIBE TODA TU RESPUESTA EN ESPAÑOL.\n\n";
   const res = await model.invoke([
     { role: "system", content: system },
-    { role: "user", content: renderBriefForPrompt(brief) },
+    { role: "user", content: directiva + renderBriefForPrompt(brief) },
   ]);
   const text = typeof res.content === "string" ? res.content : String(res.content ?? "");
   return text.trim();

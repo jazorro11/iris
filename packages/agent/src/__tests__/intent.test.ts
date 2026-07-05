@@ -13,9 +13,9 @@ function fakeModel(fixture: unknown, captured: { input?: unknown }): StructuredM
 
 test("classifyIntent devuelve las banderas validadas y pasa el system prompt", async () => {
   const captured: { input?: unknown } = {};
-  const model = fakeModel({ handoff: true, preguntaProfunda: false }, captured);
+  const model = fakeModel({ handoff: true, preguntaProfunda: false, idioma: "es" }, captured);
   const out = await classifyIntent(model, "quiero comprar esta, ¿cómo pago?");
-  assert.deepEqual(out, { handoff: true, preguntaProfunda: false });
+  assert.deepEqual(out, { handoff: true, preguntaProfunda: false, idioma: "es" });
   const msgs = captured.input as Array<{ role: string; content: string }>;
   assert.equal(msgs[0].role, "system");
   assert.equal(msgs[0].content, INTENT_SYSTEM_PROMPT);
@@ -28,7 +28,7 @@ test("classifyIntent rechaza salidas mal formadas", async () => {
 });
 
 test("DEFAULT_INTENT es todo-false", () => {
-  assert.deepEqual(DEFAULT_INTENT, { handoff: false, preguntaProfunda: false } satisfies IntentFlags);
+  assert.deepEqual(DEFAULT_INTENT, { handoff: false, preguntaProfunda: false, idioma: "es" } satisfies IntentFlags);
 });
 
 test("INTENT_SYSTEM_PROMPT describe handoff y preguntaProfunda", () => {

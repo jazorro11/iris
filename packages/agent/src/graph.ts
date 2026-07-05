@@ -125,6 +125,7 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     stones: piedras,
     history,
     preguntaProfunda: state.intent.preguntaProfunda,
+    idioma: state.intent.idioma,
   });
   const reply = await composeOrFallback(deps, brief, fallback);
   return { reply, mediaUrl: piedras[0]?.media_url ?? null };

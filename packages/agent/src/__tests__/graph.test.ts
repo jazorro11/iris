@@ -115,7 +115,7 @@ test("handoff notifica al vendedor con aviso distinto", async () => {
     extract: async () => ({ proposito: "joyeria" }),
     saveLead: async () => ({ id: "x" }),
     notifySeller: async (t) => { seller.push(t); },
-    classifyIntent: async () => ({ handoff: true, preguntaProfunda: false }),
+    classifyIntent: async () => ({ handoff: true, preguntaProfunda: false, idioma: "es" }),
     checkpointer: new MemorySaver(),
   };
   await runIris(deps, { telegramUserId: 12, chatId: 12, text: "quiero comprarla, ¿cómo pago?" });
@@ -135,7 +135,7 @@ test("sin classifyIntent, el intent cae a DEFAULT (fallback determinista)", asyn
   const { reply } = await runIris(deps, { telegramUserId: 13, chatId: 13, text: "hola" });
   assert.equal(reply, "ok");
   assert.ok(vistoBrief, "sin clasificador, preguntaProfunda no debe activarse");
-  assert.deepEqual(DEFAULT_INTENT, { handoff: false, preguntaProfunda: false });
+  assert.deepEqual(DEFAULT_INTENT, { handoff: false, preguntaProfunda: false, idioma: "es" });
 });
 
 test("buildSellerSummary incluye el id de Telegram y el estado", () => {
