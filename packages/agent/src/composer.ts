@@ -17,8 +17,8 @@ Recibes un BRIEF con hechos verificados y, al final, una GUÍA con conocimiento 
 En cada mensaje, en este orden y dentro de un texto fluido (NUNCA en viñetas, NUNCA el encabezado "Para ayudarte mejor, cuéntame"):
 1. Acusa recibo de lo que el cliente acaba de decir (cliente_dijo), con naturalidad, sin repetirlo como loro.
 2. Si el cliente hizo una PREGUNTA o planteó una DUDA/objeción, respóndela DE VERDAD usando la GUÍA y los datos de la piedra. Nunca la dejes sin responder ni la sustituyas por derivar a un asesor. Ejemplos: "¿qué son los quilates?" → explícalo; "¿se valoriza?" → responde con honestidad (ver reglas); "¿precio total?" → da el cálculo de la piedra; "¿tienes fotos?" → confirma que se la compartes; "¿otras opciones?" → ofrece otra de piedras_que_encajan.
-3. Si hay piedras_que_encajan, refuerza la que mejor encaja conectándola con lo que el cliente dijo (presupuesto, peso, propósito) y aporta UN dato técnico NUEVO respecto a lo que ya dijiste antes (revisa historial_reciente): color, origen, claridad, tratamiento, por qué su valor, o el precio total. Varía el enfoque y el fraseo en cada turno; nunca repitas la misma frase.
-4. Avanza UN paso hacia el cierre: si falta info, pide solo 1 dato (máx 2) de falta_por_preguntar, el más relevante; si ya hay match y datos suficientes, propón el siguiente paso (cotizar el total, compartir la foto, afinar el montaje).
+3. Si hay piedras_que_encajan, refuerza la que mejor encaja conectándola con lo que el cliente dijo (presupuesto, peso, propósito) y aporta UN dato técnico NUEVO respecto a lo que ya dijiste antes (revisa historial_reciente): color, origen, claridad, tratamiento, por qué su valor, o el precio total. Varía el enfoque y el fraseo en cada turno; nunca repitas la misma frase. Si foto_adjunta es "sí", menciona de forma natural que le estás compartiendo la foto de la piedra (ej. "te mando la foto", "te la comparto"); no lo repitas si ya lo dijiste en el historial_reciente.
+4. Avanza UN paso hacia el cierre: si falta info, pide solo 1 dato (máx 2) de falta_por_preguntar, el más relevante; si ya hay match y datos suficientes, propón el siguiente paso (cotizar el total, afinar el montaje).
 
 Fuente de los datos de la piedra, en cascada (usa el primero que exista): el campo del brief (color/origen/claridad/tratamiento/notas) → si está vacío, el conocimiento general de la GUÍA. NO inventes un atributo concreto de ESA piedra si no aparece en su línea del brief; para eso habla en términos generales de la guía.
 
@@ -74,6 +74,7 @@ export function renderBriefForPrompt(b: ComposeBrief): string {
   const history = b.history && b.history.length
     ? b.history.map((m) => `${m.rol === "comprador" ? "Cliente" : "Iris"}: ${m.texto}`).join("\n")
     : "(sin historial)";
+  const fotoAdjunta = b.stones.length > 0 && b.stones[0].media_url ? "sí" : "no";
   return [
     `intent: ${b.intent}`,
     `cliente_dijo: ${b.userMessage}`,
@@ -81,6 +82,7 @@ export function renderBriefForPrompt(b: ComposeBrief): string {
     `presupuesto: ${presupuesto}`,
     `falta_por_preguntar (prioridad): ${missing}`,
     `piedras_que_encajan:\n${stones}`,
+    `foto_adjunta: ${fotoAdjunta}`,
     `historial_reciente:\n${history}`,
     b.cierre ? `cierre: ${b.cierre}` : null,
   ].filter(Boolean).join("\n");
