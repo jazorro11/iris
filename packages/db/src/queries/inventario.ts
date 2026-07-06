@@ -48,6 +48,28 @@ export function filtrarPiedras(piedras: Piedra[], s: Solicitud): Piedra[] {
     .slice(0, 3);
 }
 
+/** Un typo al pegar el link a mano en el Table Editor (p. ej. host truncado
+ * `https://driid=...`) produce una URL que Telegram no puede descargar y el envío
+ * falla en silencio. Normalizar a null cualquier valor que no sea una URL http(s)
+ * con host real, para que el brief/envío la traten como "sin foto". */
+/** Formatos que Telegram NO renderiza vía sendPhoto (fallan con "failed to get
+ * HTTP URL content"). HEIC/HEIF es el caso real de las fotos de iPhone. */
+const FORMATOS_NO_SOPORTADOS = /\.(heic|heif)$/i;
+
+export function normalizeMediaUrl(v: unknown): string | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  const s = v.trim();
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (!u.hostname.includes(".")) return null; // host mutilado por copy-paste
+    if (FORMATOS_NO_SOPORTADOS.test(u.pathname)) return null; // Telegram no lo muestra
+    return s;
+  } catch {
+    return null;
+  }
+}
+
 /** Trae el stock disponible y lo filtra contra la solicitud. */
 export async function matchInventory(db: DbClient, solicitud: Solicitud): Promise<Piedra[]> {
   const { data, error } = await db.from("inventario").select("*").eq("disponible", true);
@@ -58,6 +80,7 @@ export async function matchInventory(db: DbClient, solicitud: Solicitud): Promis
     peso_ct: Number(r.peso_ct),
     precio_usd_ct: Number(r.precio_usd_ct),
     cantidad_piedras: Number(r.cantidad_piedras),
+    media_url: normalizeMediaUrl(r.media_url),
   })) as Piedra[];
   return filtrarPiedras(piedras, solicitud);
 }
