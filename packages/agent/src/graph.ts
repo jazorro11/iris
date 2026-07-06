@@ -130,19 +130,31 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
         ? "Con gusto sigo ayudándote. ¿Qué más te gustaría saber?" + buildPiedrasPropuestas(piedras)
         : buildClarificationMessage(state.camposFaltantes) + buildPiedrasPropuestas(piedras);
   const history = deps.getHistory ? await deps.getHistory() : [];
+  const yaPreguntado = state.preguntadas;
+  const target = state.camposFaltantes.find((c) => !yaPreguntado.includes(c)) ?? null;
+  const missingPrioritizado = target
+    ? [target, ...state.camposFaltantes.filter((c) => c !== target)]
+    : state.camposFaltantes;
   const brief = buildComposeBrief({
     intent: briefIntent,
     userMessage: state.inputText,
     solicitud: state.solicitud,
-    missing: state.camposFaltantes,
+    missing: missingPrioritizado,
     stones: piedras,
     history,
     preguntaProfunda: state.intent.preguntaProfunda,
     idioma: state.intent.idioma,
     hayExactas,
+    yaPreguntado,
+    piedrasMostradas: state.piedras_mostradas,
   });
   const reply = await composeOrFallback(deps, brief, fallback);
-  return { reply, mediaUrl: piedras[0]?.media_url ?? null };
+  return {
+    reply,
+    mediaUrl: piedras[0]?.media_url ?? null,
+    preguntadas: target ? [target] : [],
+    piedras_mostradas: piedras.map((p) => p.nombre),
+  };
 }
 
 export async function buildGraph(deps: IrisDeps) {
