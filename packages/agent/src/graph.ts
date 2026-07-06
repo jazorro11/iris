@@ -20,6 +20,8 @@ export interface IrisDeps {
   getHistory?: () => Promise<{ rol: "comprador" | "agente"; texto: string }[]>;
   /** Opcional: clasifica el mensaje en {handoff, preguntaProfunda}. Sin ella, se usa DEFAULT_INTENT. */
   classifyIntent?: (text: string) => Promise<IntentFlags>;
+  /** Opcional: actualiza el resumen rodante (best-effort). Si falta o falla, se conserva el previo. */
+  summarize?: (a: { previo: string; userMessage: string; reply: string }) => Promise<string>;
   /** Por defecto PostgresSaver; en tests se inyecta MemorySaver. */
   checkpointer?: BaseCheckpointSaver;
 }
@@ -147,13 +149,23 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     hayExactas,
     yaPreguntado,
     piedrasMostradas: state.piedras_mostradas,
+    resumen: state.resumen,
   });
   const reply = await composeOrFallback(deps, brief, fallback);
+  let resumen = state.resumen;
+  if (deps.summarize) {
+    try {
+      resumen = await deps.summarize({ previo: state.resumen, userMessage: state.inputText, reply });
+    } catch (err) {
+      console.error("[iris] summarize falló, conservo resumen previo:", err);
+    }
+  }
   return {
     reply,
     mediaUrl: piedras[0]?.media_url ?? null,
     preguntadas: target ? [target] : [],
     piedras_mostradas: piedras.map((p) => p.nombre),
+    resumen,
   };
 }
 

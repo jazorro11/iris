@@ -61,6 +61,13 @@ export async function POST(request: Request) {
     matchInventory: (solicitud) => matchInventory(db, solicitud),
     compose: (brief) => composeReply(composerModel, brief),
     getHistory: async () => previas,
+    summarize: async ({ previo, userMessage, reply }) => {
+      const res = await model.invoke([
+        { role: "system", content: "Actualiza en 2-4 frases el resumen de una conversación de venta de esmeraldas: qué pidió el cliente, qué se le mostró, sus preferencias y el próximo paso. Devuelve solo el resumen." },
+        { role: "user", content: `Resumen previo: ${previo || "(vacío)"}\nCliente dijo: ${userMessage}\nIris respondió: ${reply}` },
+      ]);
+      return typeof res.content === "string" ? res.content.trim() : String(res.content ?? "").trim();
+    },
   };
 
   try {
