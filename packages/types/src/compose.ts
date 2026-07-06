@@ -30,4 +30,6 @@ export interface ComposeBrief {
   piedrasMostradas?: string[];
   /** Resumen rodante de la conversación (memoria ligera). */
   resumen?: string;
+  /** true si el sistema adjuntará la foto de la primera piedra (piedras[0].media_url no es null). */
+  fotoAdjunta?: boolean;
 }

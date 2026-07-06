@@ -85,3 +85,17 @@ test("render incluye hayExactas, ya_preguntado, ya_mostrado y memoria", () => {
   assert.match(txt, /ya_mostrado: Esmeralda X/);
   assert.match(txt, /memoria_conversacion: Cliente busca 10ct\./);
 });
+
+test("render incluye foto_adjunta según fotoAdjunta", () => {
+  const sinFoto = buildComposeBrief({
+    intent: "asesorar", userMessage: "hola", solicitud: {},
+    missing: [], stones: [], fotoAdjunta: false,
+  });
+  assert.match(renderBriefForPrompt(sinFoto), /foto_adjunta: no/);
+
+  const conFoto = buildComposeBrief({
+    intent: "asesorar", userMessage: "hola", solicitud: {},
+    missing: [], stones: [], fotoAdjunta: true,
+  });
+  assert.match(renderBriefForPrompt(conFoto), /foto_adjunta: sí/);
+});

@@ -137,6 +137,7 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
   const missingPrioritizado = target
     ? [target, ...state.camposFaltantes.filter((c) => c !== target)]
     : state.camposFaltantes;
+  const fotoAdjunta = (piedras[0]?.media_url ?? null) != null;
   const brief = buildComposeBrief({
     intent: briefIntent,
     userMessage: state.inputText,
@@ -150,6 +151,7 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     yaPreguntado,
     piedrasMostradas: state.piedras_mostradas,
     resumen: state.resumen,
+    fotoAdjunta,
   });
   const reply = await composeOrFallback(deps, brief, fallback);
   let resumen = state.resumen;

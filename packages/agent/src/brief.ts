@@ -26,6 +26,7 @@ export function buildComposeBrief(input: {
   yaPreguntado?: CampoCritico[];
   piedrasMostradas?: string[];
   resumen?: string;
+  fotoAdjunta?: boolean;
 }): ComposeBrief {
   const missingSet = new Set<CampoCritico>(input.missing);
   const knownAll = pickKnownCriticos(input.solicitud);
@@ -48,5 +49,6 @@ export function buildComposeBrief(input: {
     ...(input.yaPreguntado?.length ? { yaPreguntado: input.yaPreguntado } : {}),
     ...(input.piedrasMostradas?.length ? { piedrasMostradas: input.piedrasMostradas } : {}),
     ...(input.resumen ? { resumen: input.resumen } : {}),
+    ...(input.fotoAdjunta !== undefined ? { fotoAdjunta: input.fotoAdjunta } : {}),
   };
 }

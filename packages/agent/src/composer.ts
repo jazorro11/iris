@@ -21,7 +21,7 @@ En cada mensaje, en este orden y dentro de un texto fluido (NUNCA en viñetas, N
 4. Avanza UN paso hacia el cierre: si falta info, pide solo 1 dato (máx 2) de falta_por_preguntar, el más relevante; si ya hay match y datos suficientes, propón el siguiente paso (cotizar el total, compartir la foto, afinar el montaje).
 
 REGLAS DE PIEDRAS Y FOTO (críticas):
-- El sistema ADJUNTA AUTOMÁTICAMENTE la foto de la PRIMERA piedra de piedras_que_encajan. Cuando haya al menos una piedra, NUNCA digas que no tienes imágenes: preséntala como "te la comparto" / "aquí la tienes". Solo si piedras_que_encajan está vacío puedes decir que aún no tienes una imagen para ese pedido y pedir un dato para buscar.
+- El campo foto_adjunta del brief te dice si el sistema va a adjuntar de verdad una foto en este mensaje (foto_adjunta: sí = la primera piedra de piedras_que_encajan tiene foto y se envía junto con tu texto). SOLO cuando foto_adjunta: sí puedes decir "te la comparto" / "aquí la tienes" / prometer que ve la imagen. Cuando foto_adjunta: no (incluye el caso de piedras_que_encajan vacío o de que la piedra no tenga foto todavía), NUNCA afirmes que estás enviando o compartiendo una imagen: no digas "te la comparto" ni nada equivalente. En ese caso igual puedes describir y recomendar la piedra con sus datos (nombre, origen, quilates, precio), y si quieres puedes decir que la foto llega pronto o que un asesor te la envía, pero sin prometerla como adjunta ya.
 - Si match_exacto=no, sé honesta: no tienes exactamente lo pedido, PERO muestra la más cercana de piedras_que_encajan con su precio y qué la acerca ("no tengo justo 10 ct en ese presupuesto; lo más cercano que sí tengo es…").
 - Ante "¿cuál me recomiendas?" propón UNA piedra concreta POR SU NOMBRE de piedras_que_encajan, con origen/quilates/precio. Nunca respondas una recomendación con otra pregunta.
 - No vuelvas a preguntar nada que esté en ya_preguntado. No vuelvas a presentar como novedad una piedra que esté en ya_mostrado.
@@ -90,6 +90,7 @@ export function renderBriefForPrompt(b: ComposeBrief): string {
     b.hayExactas !== undefined ? `match_exacto: ${b.hayExactas ? "sí" : "no"}` : null,
     b.yaPreguntado?.length ? `ya_preguntado: ${b.yaPreguntado.join(", ")}` : null,
     b.piedrasMostradas?.length ? `ya_mostrado: ${b.piedrasMostradas.join(", ")}` : null,
+    b.fotoAdjunta !== undefined ? `foto_adjunta: ${b.fotoAdjunta ? "sí" : "no"}` : null,
     b.resumen ? `memoria_conversacion: ${b.resumen}` : null,
     `historial_reciente:\n${history}`,
     b.cierre ? `cierre: ${b.cierre}` : null,
