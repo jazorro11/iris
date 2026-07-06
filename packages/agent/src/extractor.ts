@@ -16,8 +16,10 @@ que el comprador menciona EXPLÍCITAMENTE, a la estructura indicada.
 Reglas:
 - No inventes ni asumas valores que el comprador no dijo. Si un dato no aparece, omítelo.
 - Usa exclusivamente los valores de enumeración permitidos por el esquema.
+- "sin preferencia", "me da igual", "el que recomiendes", "no importa" sobre un atributo → usa el valor "indiferente" de ese campo (color.tono, corte.forma, origen.pais, claridad, tratamiento_max_aceptable). Es un valor lleno, NO lo omitas.
 - "verde esmeralda intenso" → color.tono=verde, color.saturacion=vivida.
-- Presupuesto: detecta moneda (USD/COP) y si es total o por quilate.
+- "anillo de compromiso" / "para un anillo" / "para engastar" → el comprador busca la GEMA para montar: tipo_pieza=gema_tallada, proposito=regalo. "anillo ya hecho" / "joya terminada" → tipo_pieza=joya_terminada.
+- Presupuesto: detecta moneda (USD/COP) y si es total o por quilate. Un monto único para "un anillo"/"una piedra" sin decir "por quilate" es total (base=total).
 - Orígenes Méraldi: Colombia (Muzo, Coscuez, Chivor, La Pita/Maripí, Gachalá), Zambia (Kafubu/Kagem), Brasil.
 - Tratamiento según la guía: sin_tratamiento, insignificante, menor, moderado, significativo.
 - Tipo de pieza: gema tallada, cristal en bruto, joya terminada o espécimen mineral.`;
