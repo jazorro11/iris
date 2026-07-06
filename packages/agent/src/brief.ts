@@ -22,6 +22,10 @@ export function buildComposeBrief(input: {
   history?: { rol: "comprador" | "agente"; texto: string }[];
   preguntaProfunda?: boolean;
   idioma?: "es" | "en";
+  hayExactas?: boolean;
+  yaPreguntado?: CampoCritico[];
+  piedrasMostradas?: string[];
+  resumen?: string;
 }): ComposeBrief {
   const missingSet = new Set<CampoCritico>(input.missing);
   const knownAll = pickKnownCriticos(input.solicitud);
@@ -40,5 +44,9 @@ export function buildComposeBrief(input: {
     ...(input.cierre ? { cierre: input.cierre } : {}),
     ...(input.preguntaProfunda ? { preguntaProfunda: true } : {}),
     ...(input.idioma ? { idioma: input.idioma } : {}),
+    ...(input.hayExactas !== undefined ? { hayExactas: input.hayExactas } : {}),
+    ...(input.yaPreguntado?.length ? { yaPreguntado: input.yaPreguntado } : {}),
+    ...(input.piedrasMostradas?.length ? { piedrasMostradas: input.piedrasMostradas } : {}),
+    ...(input.resumen ? { resumen: input.resumen } : {}),
   };
 }

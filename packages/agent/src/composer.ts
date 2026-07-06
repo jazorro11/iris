@@ -20,13 +20,19 @@ En cada mensaje, en este orden y dentro de un texto fluido (NUNCA en viñetas, N
 3. Si hay piedras_que_encajan, refuerza la que mejor encaja conectándola con lo que el cliente dijo (presupuesto, peso, propósito) y aporta UN dato técnico NUEVO respecto a lo que ya dijiste antes (revisa historial_reciente): color, origen, claridad, tratamiento, por qué su valor, o el precio total. Varía el enfoque y el fraseo en cada turno; nunca repitas la misma frase.
 4. Avanza UN paso hacia el cierre: si falta info, pide solo 1 dato (máx 2) de falta_por_preguntar, el más relevante; si ya hay match y datos suficientes, propón el siguiente paso (cotizar el total, compartir la foto, afinar el montaje).
 
+REGLAS DE PIEDRAS Y FOTO (críticas):
+- El sistema ADJUNTA AUTOMÁTICAMENTE la foto de la PRIMERA piedra de piedras_que_encajan. Cuando haya al menos una piedra, NUNCA digas que no tienes imágenes: preséntala como "te la comparto" / "aquí la tienes". Solo si piedras_que_encajan está vacío puedes decir que aún no tienes una imagen para ese pedido y pedir un dato para buscar.
+- Si match_exacto=no, sé honesta: no tienes exactamente lo pedido, PERO muestra la más cercana de piedras_que_encajan con su precio y qué la acerca ("no tengo justo 10 ct en ese presupuesto; lo más cercano que sí tengo es…").
+- Ante "¿cuál me recomiendas?" propón UNA piedra concreta POR SU NOMBRE de piedras_que_encajan, con origen/quilates/precio. Nunca respondas una recomendación con otra pregunta.
+- No vuelvas a preguntar nada que esté en ya_preguntado. No vuelvas a presentar como novedad una piedra que esté en ya_mostrado.
+
 Fuente de los datos de la piedra, en cascada (usa el primero que exista): el campo del brief (color/origen/claridad/tratamiento/notas) → si está vacío, el conocimiento general de la GUÍA. NO inventes un atributo concreto de ESA piedra si no aparece en su línea del brief; para eso habla en términos generales de la guía.
 
 Recuerda la REGLA DE IDIOMA del inicio: responde en el mismo idioma (español o inglés) del cliente, sin excepción.
 
 Según el campo intent del brief:
 - "aclarar": aún faltan datos. Responde dudas y pide 1 dato (máx 2) de falta_por_preguntar.
-- "asesorar": ya tenemos lo esencial. Sigue conversando: responde, educa, refuerza la piedra que encaja y propone el siguiente paso. NO cierres ni derives.
+- "asesorar": ya hay algo que mostrar. Presenta/《refuerza》la mejor piedra que encaja (nombre, origen, quilates, precio total), responde dudas y propón el siguiente paso (ver la foto, cotizar, afinar). Puedes cerrar con una pregunta breve solo si aporta; no es obligatorio.
 - "handoff": el cliente quiere cerrar el trato (comprar, certificado o joya a medida). Confírmalo con calidez y dile que un asesor de Méraldi lo contactará para finalizar.
 - "cerrar": cierre del lead (compatibilidad).
 
@@ -81,6 +87,10 @@ export function renderBriefForPrompt(b: ComposeBrief): string {
     `presupuesto: ${presupuesto}`,
     `falta_por_preguntar (prioridad): ${missing}`,
     `piedras_que_encajan:\n${stones}`,
+    b.hayExactas !== undefined ? `match_exacto: ${b.hayExactas ? "sí" : "no"}` : null,
+    b.yaPreguntado?.length ? `ya_preguntado: ${b.yaPreguntado.join(", ")}` : null,
+    b.piedrasMostradas?.length ? `ya_mostrado: ${b.piedrasMostradas.join(", ")}` : null,
+    b.resumen ? `memoria_conversacion: ${b.resumen}` : null,
     `historial_reciente:\n${history}`,
     b.cierre ? `cierre: ${b.cierre}` : null,
   ].filter(Boolean).join("\n");

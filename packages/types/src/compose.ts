@@ -22,4 +22,12 @@ export interface ComposeBrief {
   preguntaProfunda?: boolean;
   /** Idioma detectado del mensaje del cliente (clasificador determinista). Por defecto "es". */
   idioma?: "es" | "en";
+  /** true si alguna piedra cumple LITERALMENTE lo pedido; false → las stones son "lo más cercano". */
+  hayExactas?: boolean;
+  /** Campos ya preguntados en turnos anteriores; el redactor no debe repetirlos. */
+  yaPreguntado?: CampoCritico[];
+  /** Nombres de piedras ya mostradas; no re-mostrar la misma. */
+  piedrasMostradas?: string[];
+  /** Resumen rodante de la conversación (memoria ligera). */
+  resumen?: string;
 }

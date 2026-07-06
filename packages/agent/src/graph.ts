@@ -117,7 +117,6 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
   const { piedras, hayExactas } = deps.matchInventory
     ? await deps.matchInventory(state.solicitud)
     : { piedras: [] as Piedra[], hayExactas: false };
-  void hayExactas; // se consume en Task 5
   const briefIntent = decideBriefIntent({
     handoff: state.intent.handoff,
     estado: state.estado,
@@ -140,6 +139,7 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     history,
     preguntaProfunda: state.intent.preguntaProfunda,
     idioma: state.intent.idioma,
+    hayExactas,
   });
   const reply = await composeOrFallback(deps, brief, fallback);
   return { reply, mediaUrl: piedras[0]?.media_url ?? null };
