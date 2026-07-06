@@ -13,7 +13,7 @@ export interface IrisDeps {
   saveLead: (row: LeadRow) => Promise<{ id: string }>;
   notifySeller: (text: string) => Promise<void>;
   /** Opcional: propone piedras del inventario que coincidan. */
-  matchInventory?: (solicitud: Solicitud) => Promise<Piedra[]>;
+  matchInventory?: (solicitud: Solicitud) => Promise<{ piedras: Piedra[]; hayExactas: boolean }>;
   /** Opcional: redacta el mensaje al cliente desde el brief. Si falta o falla, se usan plantillas. */
   compose?: (brief: ComposeBrief) => Promise<string>;
   /** Opcional: últimos mensajes de la conversación, en orden cronológico. */
@@ -94,7 +94,7 @@ async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>
   await deps.saveLead(row);
   const updates: Partial<State> = {};
   if (state.estado === "completo" && !state.vendedorNotificado) {
-    const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
+    const { piedras } = deps.matchInventory ? await deps.matchInventory(state.solicitud) : { piedras: [] as Piedra[] };
     await deps.notifySeller(buildSellerSummary(row) + buildPiedrasPropuestas(piedras));
     updates.vendedorNotificado = true;
   }
@@ -106,7 +106,10 @@ async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>
 }
 
 async function responderNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
-  const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
+  const { piedras, hayExactas } = deps.matchInventory
+    ? await deps.matchInventory(state.solicitud)
+    : { piedras: [] as Piedra[], hayExactas: false };
+  void hayExactas; // se consume en Task 5
   const briefIntent = state.intent.handoff
     ? "handoff" as const
     : state.estado === "completo" ? "asesorar" as const : "aclarar" as const;

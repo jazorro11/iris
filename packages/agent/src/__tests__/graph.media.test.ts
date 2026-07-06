@@ -15,7 +15,7 @@ test("runIris expone media_url de la piedra propuesta", async () => {
     extract: async () => ({ corte: { forma: "corte_esmeralda" }, peso_quilates: { min: 3, max: 4 } }),
     saveLead: async () => ({ id: "x" }),
     notifySeller: async () => {},
-    matchInventory: async () => [piedraFoto],
+    matchInventory: async () => ({ piedras: [piedraFoto], hayExactas: true }),
     checkpointer: new MemorySaver(),
   };
   const out = await runIris(deps, { telegramUserId: 1, chatId: 1, text: "cuadrada de 3-4 ct" });

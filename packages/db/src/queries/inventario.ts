@@ -93,37 +93,11 @@ export function rankearPiedras(piedras: Piedra[], s: Solicitud): Piedra[] {
     .map((x) => x.p);
 }
 
-/** Filtra el stock contra la solicitud. Solo usa forma + peso + precio/ct.
- * Devuelve [] si el comprador no dio ninguno de esos tres criterios. */
-export function filtrarPiedras(piedras: Piedra[], s: Solicitud): Piedra[] {
-  const forma = s.corte?.forma;
-  const peso = s.peso_quilates;
-  const pres = s.presupuesto;
-  const hayForma = forma != null && forma !== "indiferente";
-  const hayPeso = peso != null && (peso.min != null || peso.max != null);
-  // ponytail: presupuesto en COP no es comparable con precios USD/ct → se omite el filtro de precio
-  const hayPres = pres != null && (pres.min != null || pres.max != null) && pres.moneda !== "COP";
-  if (!hayForma && !hayPeso && !hayPres) return [];
-
-  const [pesoMin, pesoMax] = bandaPeso(peso?.min ?? null, peso?.max ?? null);
-  const [presMin, presMax] = topePresupuesto(pres?.min ?? null, pres?.max ?? null);
-
-  return piedras
-    .filter((p) => p.disponible)
-    .filter((p) => !hayForma || p.forma === forma)
-    .filter((p) => !hayPeso || dentro(p.peso_ct, pesoMin, pesoMax))
-    .filter((p) => {
-      if (!hayPres) return true;
-      // ponytail: base ausente → por_quilate (los precios del inventario son por quilate)
-      if (pres!.base === "total") return dentro(p.precio_usd_ct * p.peso_ct, presMin, presMax);
-      return dentro(p.precio_usd_ct, presMin, presMax);
-    })
-    .sort((a, b) => a.precio_usd_ct - b.precio_usd_ct)
-    .slice(0, 3);
-}
-
-/** Trae el stock disponible y lo filtra contra la solicitud. */
-export async function matchInventory(db: DbClient, solicitud: Solicitud): Promise<Piedra[]> {
+/** Trae el stock disponible y devuelve las piedras más cercanas + si hubo match exacto. */
+export async function matchInventory(
+  db: DbClient,
+  solicitud: Solicitud
+): Promise<{ piedras: Piedra[]; hayExactas: boolean }> {
   const { data, error } = await db.from("inventario").select("*").eq("disponible", true);
   if (error) throw error;
   // Supabase devuelve columnas numeric como string; coercionar a number en el borde.
@@ -133,5 +107,5 @@ export async function matchInventory(db: DbClient, solicitud: Solicitud): Promis
     precio_usd_ct: Number(r.precio_usd_ct),
     cantidad_piedras: Number(r.cantidad_piedras),
   })) as Piedra[];
-  return filtrarPiedras(piedras, solicitud);
+  return { piedras: rankearPiedras(piedras, solicitud), hayExactas: hayMatchExacto(piedras, solicitud) };
 }
