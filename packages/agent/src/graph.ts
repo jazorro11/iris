@@ -2,7 +2,7 @@ import { StateGraph, START, END, type BaseCheckpointSaver } from "@langchain/lan
 import type { Solicitud, EstadoLead, LeadRow, Piedra, ComposeBrief } from "@iris/types";
 import { buildLeadRow } from "@iris/db";
 import { IrisState, type State } from "./state.js";
-import { evaluarEstado } from "./request.js";
+import { evaluarEstado, MAX_RONDAS } from "./request.js";
 import { buildClarificationMessage } from "./questions.js";
 import { getCheckpointer } from "./checkpointer.js";
 import { buildComposeBrief } from "./brief.js";
@@ -105,14 +105,25 @@ async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>
   return updates;
 }
 
+export function decideBriefIntent(a: {
+  handoff: boolean; estado: EstadoLead; tieneStones: boolean; rondas: number;
+}): "handoff" | "asesorar" | "aclarar" {
+  if (a.handoff) return "handoff";
+  if (a.estado === "completo" || a.tieneStones || a.rondas >= MAX_RONDAS) return "asesorar";
+  return "aclarar";
+}
+
 async function responderNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
   const { piedras, hayExactas } = deps.matchInventory
     ? await deps.matchInventory(state.solicitud)
     : { piedras: [] as Piedra[], hayExactas: false };
   void hayExactas; // se consume en Task 5
-  const briefIntent = state.intent.handoff
-    ? "handoff" as const
-    : state.estado === "completo" ? "asesorar" as const : "aclarar" as const;
+  const briefIntent = decideBriefIntent({
+    handoff: state.intent.handoff,
+    estado: state.estado,
+    tieneStones: piedras.length > 0,
+    rondas: state.rondas,
+  });
   const fallback =
     briefIntent === "handoff"
       ? "¡Perfecto! Un asesor de Méraldi te contactará para finalizar. 💚" + buildPiedrasPropuestas(piedras)
