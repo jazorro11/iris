@@ -132,10 +132,13 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
   const piedras = pideFoto(state.inputText)
     ? matches
     : matches.filter((p) => !yaRecomendadas.has(p.id));
+  // La válvula de escape mira `matches` (antes del dedup): si el catálogo tiene un
+  // match aunque ya se lo mostramos al cliente, seguimos en modo asesorar en vez de
+  // volver a preguntar. Usar `piedras` (post-dedup) revive el loop de re-preguntar.
   const briefIntent = decideBriefIntent({
     handoff: state.intent.handoff,
     estado: state.estado,
-    tieneStones: piedras.length > 0,
+    tieneStones: matches.length > 0,
     rondas: state.rondas,
   });
   const fallback =
@@ -160,7 +163,9 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     history,
     preguntaProfunda: state.intent.preguntaProfunda,
     idioma: state.intent.idioma,
-    hayExactas,
+    // El dedup puede dejar `piedras` vacío aunque el catálogo tuviera un match exacto.
+    // No afirmar `match_exacto: sí` cuando no mostramos ninguna piedra (brief contradictorio).
+    hayExactas: hayExactas && piedras.length > 0,
     yaPreguntado,
     piedrasMostradas: state.piedras_mostradas,
     resumen: state.resumen,

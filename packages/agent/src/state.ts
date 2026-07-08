@@ -35,10 +35,7 @@ export const IrisState = Annotation.Root({
   resumen: Annotation<string>(lastWrite("")),
   /** IDs de inventario ya recomendados al cliente en esta conversación.
    * Acumula (unión sin duplicados) para no reenviar la misma piedra dos veces. */
-  piedrasRecomendadas: Annotation<string[]>({
-    reducer: (p, n) => [...new Set([...(p ?? []), ...(n ?? [])])],
-    default: () => [],
-  }),
+  piedrasRecomendadas: Annotation<string[]>(unionArr<string>([])),
 });
 
 export type State = typeof IrisState.State;

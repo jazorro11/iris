@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { MemorySaver } from "@langchain/langgraph";
 import { runIris, type IrisDeps } from "../graph.js";
-import type { Piedra } from "@iris/types";
+import type { Piedra, ComposeBrief } from "@iris/types";
 
 const piedra: Piedra = {
   id: "a", nombre: "Cuadrada 3.61 ct", forma: "corte_esmeralda",
@@ -42,6 +42,34 @@ test("si el cliente PIDE la foto explícitamente, se reenvía aunque ya se haya 
   // El cliente pide la foto de una piedra ya recomendada → el dedup NO debe bloquearla.
   const t2 = await runIris(d, { telegramUserId: 3, chatId: 3, text: "¿me mandas la foto?" });
   assert.equal(t2.mediaUrl, "http://x/a.jpg", "petición explícita de foto reenvía la imagen");
+});
+
+test("dedup deja stones vacío pero el brief no se contradice ni revive el re-preguntar", async () => {
+  // Regresión: cuando la única piedra del match ya se recomendó, el dedup la quita
+  // (piedras=[]). El brief NO debe decir match_exacto=sí sin piedras, ni volver a
+  // "aclarar" (perder la válvula de escape). Ver review del merge d349243.
+  const cap: { brief?: ComposeBrief } = {};
+  let turno = 0;
+  const d: IrisDeps = {
+    extract: async () => ({ corte: { forma: "corte_esmeralda" }, peso_quilates: { min: 3, max: 4 } }),
+    saveLead: async () => ({ id: "x" }),
+    notifySeller: async () => {},
+    matchInventory: async () => ({ piedras: [piedra], hayExactas: true }),
+    compose: async (brief) => {
+      turno += 1;
+      if (turno === 2) cap.brief = brief;
+      return "ok";
+    },
+    checkpointer: new MemorySaver(),
+  };
+
+  await runIris(d, { telegramUserId: 9, chatId: 9, text: "cuadrada de 3-4 ct" });
+  await runIris(d, { telegramUserId: 9, chatId: 9, text: "sigo interesada" });
+
+  assert.ok(cap.brief, "el segundo turno debe llamar al redactor");
+  assert.equal(cap.brief.stones.length, 0, "turno 2: la piedra ya recomendada se deduplica");
+  assert.equal(cap.brief.hayExactas, false, "sin piedras mostradas, match_exacto no puede ser sí");
+  assert.equal(cap.brief.intent, "asesorar", "hay match en catálogo → asesorar, no volver a aclarar");
 });
 
 test("una piedra nueva que aparece después sí se recomienda (no se sobre-suprime)", async () => {
