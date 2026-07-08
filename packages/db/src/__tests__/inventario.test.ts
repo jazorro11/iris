@@ -27,7 +27,42 @@ test("matchInventory coerciona numeric (string) a number y rankea", async () => 
   assert.equal(r.hayExactas, true); // b en banda [0.85,1.15]
 });
 
-test("matchInventory propaga columnas técnicas nuevas", async () => {
+test("matchInventory normaliza media_url mal formada a null (typo de pegado)", async () => {
+  const fakeDb = {
+    from: () => ({ select: () => ({ eq: async () => ({
+      data: [
+        // host truncado por copy-paste manual → no es una URL válida
+        { id: "a", nombre: "A", forma: "redondo", peso_ct: "1.00", precio_usd_ct: "100",
+          cantidad_piedras: "1", media_url: "https://driid=1RN3be3ukye2v6T0GN4T12Rabl9chUu8m", disponible: true, notas: null },
+        // URL válida → se conserva
+        { id: "b", nombre: "B", forma: "redondo", peso_ct: "1.00", precio_usd_ct: "200",
+          cantidad_piedras: "1", media_url: "https://drive.google.com/uc?export=view&id=1UEBdFwNpYY58rvHkXagMXLo1F4B8Y1BF", disponible: true, notas: null },
+      ],
+      error: null,
+    }) }) }),
+  } as unknown as DbClient;
+  const r = await matchInventory(fakeDb, { corte: { forma: "redondo" } });
+  const a = r.piedras.find((p) => p.id === "a");
+  const b = r.piedras.find((p) => p.id === "b");
+  assert.equal(a?.media_url, null, "media_url mal formada debe quedar en null");
+  assert.equal(b?.media_url, "https://drive.google.com/uc?export=view&id=1UEBdFwNpYY58rvHkXagMXLo1F4B8Y1BF", "media_url válida se conserva");
+});
+
+test("matchInventory normaliza a null formatos que Telegram no renderiza (.HEIC)", async () => {
+  const fakeDb = {
+    from: () => ({ select: () => ({ eq: async () => ({
+      data: [
+        { id: "a", nombre: "A", forma: "redondo", peso_ct: "1.00", precio_usd_ct: "100",
+          cantidad_piedras: "1", media_url: "https://pub-x.r2.dev/Proyecto%20IA/foo/IMG_1609.HEIC", disponible: true, notas: null },
+      ],
+      error: null,
+    }) }) }),
+  } as unknown as DbClient;
+  const r = await matchInventory(fakeDb, { corte: { forma: "redondo" } });
+  assert.equal(r.piedras[0]?.media_url, null, "una URL .HEIC (no soportada por Telegram) debe quedar en null");
+});
+
+test("matchInventory propaga columnas técnicas nuevas (color/origen/claridad/tratamiento)", async () => {
   const fakeDb = {
     from: () => ({ select: () => ({ eq: async () => ({
       data: [

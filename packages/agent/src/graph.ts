@@ -43,10 +43,10 @@ export function buildSellerSummary(row: LeadRow): string {
   return partes.join("\n");
 }
 
-export function buildPiedrasPropuestas(piedras: Piedra[]): string {
+export function buildPiedrasPropuestas(piedras: Piedra[], { includeUrls = false } = {}): string {
   if (piedras.length === 0) return "";
   const items = piedras.map((p) => {
-    const link = p.media_url ? ` — ${p.media_url}` : "";
+    const link = includeUrls && p.media_url ? ` — ${p.media_url}` : "";
     return `• ${p.nombre} (${p.peso_ct} ct, ${p.precio_usd_ct} USD/ct)${link}`;
   });
   return `\n\nTengo estas piedras que podrían encajar:\n${items.join("\n")}`;
@@ -97,7 +97,7 @@ async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>
   const updates: Partial<State> = {};
   if (state.estado === "completo" && !state.vendedorNotificado) {
     const { piedras } = deps.matchInventory ? await deps.matchInventory(state.solicitud) : { piedras: [] as Piedra[] };
-    await deps.notifySeller(buildSellerSummary(row) + buildPiedrasPropuestas(piedras));
+    await deps.notifySeller(buildSellerSummary(row) + buildPiedrasPropuestas(piedras, { includeUrls: true }));
     updates.vendedorNotificado = true;
   }
   if (state.intent.handoff && !state.handoffNotificado) {
@@ -115,10 +115,23 @@ export function decideBriefIntent(a: {
   return "aclarar";
 }
 
+/** El cliente pide ver la foto explícitamente (ES/EN). En ese caso el dedup no
+ * aplica: una petición directa no es una recomendación proactiva repetida. */
+const RE_PIDE_FOTO = /\bfotos?\b|\bfotograf|\bim[aá]gen(?:es)?\b|\bph?otos?\b|\bpict/i;
+export function pideFoto(text: string): boolean {
+  return RE_PIDE_FOTO.test(text ?? "");
+}
+
 async function responderNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
-  const { piedras, hayExactas } = deps.matchInventory
+  const { piedras: matches, hayExactas } = deps.matchInventory
     ? await deps.matchInventory(state.solicitud)
     : { piedras: [] as Piedra[], hayExactas: false };
+  // Nunca reenviar una piedra ya recomendada al cliente EN UNA RECOMENDACIÓN PROACTIVA.
+  // Si el cliente pide la foto explícitamente, se reenvía (se salta el dedup).
+  const yaRecomendadas = new Set(state.piedrasRecomendadas);
+  const piedras = pideFoto(state.inputText)
+    ? matches
+    : matches.filter((p) => !yaRecomendadas.has(p.id));
   const briefIntent = decideBriefIntent({
     handoff: state.intent.handoff,
     estado: state.estado,
@@ -168,6 +181,7 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
     preguntadas: target ? [target] : [],
     piedras_mostradas: piedras.map((p) => p.nombre),
     resumen,
+    piedrasRecomendadas: piedras.map((p) => p.id),
   };
 }
 
