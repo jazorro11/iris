@@ -20,6 +20,18 @@ const STOCK = [
     disponible: true, notas: "verde medio, muy limpia",
     color: "verde medio", origen: "Coscuez", claridad: "limpia", tratamiento: "insignificante" },
 ];
+// Stock realista (subset del inventario prod, con foto).
+STOCK.push(
+  { id: "3", nombre: "Cushion 6.72 ct - 440 usd-ct", forma: "cojin", peso_ct: 6.72,
+    precio_usd_ct: 440, cantidad_piedras: 1, media_url: "https://example.com/cush672.jpg",
+    disponible: true, notas: null, color: null, origen: null, claridad: null, tratamiento: null },
+  { id: "4", nombre: "Esmeralda cuadrada 9.04 ct - 4.300 usd-ct", forma: "corte_esmeralda", peso_ct: 9.04,
+    precio_usd_ct: 4300, cantidad_piedras: 1, media_url: "https://example.com/sq904.jpg",
+    disponible: true, notas: null, color: null, origen: null, claridad: null, tratamiento: null },
+  { id: "5", nombre: "Lote 4 esmeraldas 8.82 ct - 1.500 usd-ct", forma: "corte_esmeralda", peso_ct: 8.82,
+    precio_usd_ct: 1500, cantidad_piedras: 4, media_url: "https://example.com/lote882.jpg",
+    disponible: true, notas: null, color: null, origen: null, claridad: null, tratamiento: null },
+);
 const fakeDb = { from: () => ({ select: () => ({ eq: async () => ({ data: STOCK, error: null }) }) }) };
 
 const model = createChatModel();
@@ -40,6 +52,13 @@ function nuevaSesion(telegramUserId) {
     matchInventory: (s) => matchInventory(fakeDb, s),
     compose: (brief) => composeReply(composerModel, brief),
     getHistory: async () => previas,
+    summarize: async ({ previo, userMessage, reply }) => {
+      const res = await model.invoke([
+        { role: "system", content: "Actualiza en 2-4 frases el resumen de una conversación de venta de esmeraldas: qué pidió el cliente, qué se le mostró, sus preferencias y el próximo paso. Devuelve solo el resumen." },
+        { role: "user", content: `Resumen previo: ${previo || "(vacío)"}\nCliente dijo: ${userMessage}\nIris respondió: ${reply}` },
+      ]);
+      return typeof res.content === "string" ? res.content.trim() : String(res.content ?? "").trim();
+    },
     checkpointer,
   };
   return {
@@ -75,6 +94,14 @@ const escenarios = [
     turnos: [ COMPLETA, "Perfecto, quiero comprar la Muzo. ¿Cómo te pago?" ] },
   { titulo: "5) Cliente en inglés → responde en inglés",
     turnos: [ "Hi! I'm looking for a 2 carat Muzo emerald for an engagement ring. What do you have?" ] },
+  { titulo: "6) Chat5: pide fotos 5-6ct → 2000USD colombiana → sin tono → 10ct (debe MOSTRAR piedra+foto, sin loop)",
+    turnos: [
+      "Hola buenas noches, estoy buscando una esmeralda de unos 5 a 6 quilates para un anillo de compromiso, tienes imágenes que me puedas compartir?",
+      "De unos 2000 USD y solo me importa que sea colombiana la procedencia",
+      "No tengo ninguna preferencia en tono",
+      "O cual me puedes recomendar tú con ese presupuesto?",
+      "Si exploremoslas si tienes alguna de 10 quilates que me puedas mostrar me agradaría",
+    ] },
 ];
 
 let userId = 5000;
@@ -86,7 +113,7 @@ for (const { titulo, turnos } of escenarios) {
     const flags = out.intent ? `handoff=${out.intent.handoff} profunda=${out.intent.preguntaProfunda}` : "(sin intent)";
     console.log(`\n🧑 ${m}`);
     console.log(`💚 ${out.reply}`);
-    console.log(`   🏷️  ${flags}${ROJO.test(out.reply) ? "   ⚠️ deriva/finaliza-asesor" : ""}`);
+    console.log(`   🏷️  ${flags}${ROJO.test(out.reply) ? "   ⚠️ deriva/finaliza-asesor" : ""}${out.mediaUrl ? "  📷 " + out.mediaUrl : "  (sin foto)"}`);
   }
   if (ses.sellerMsgs.length) {
     console.log(`\n   📨 avisos al vendedor (${ses.sellerMsgs.length}):`);

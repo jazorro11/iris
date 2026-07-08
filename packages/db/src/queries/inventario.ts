@@ -19,33 +19,78 @@ function topePresupuesto(min: number | null, max: number | null): [number | null
   return [min, max];
 }
 
-/** Filtra el stock contra la solicitud. Solo usa forma + peso + precio/ct.
- * Devuelve [] si el comprador no dio ninguno de esos tres criterios. */
-export function filtrarPiedras(piedras: Piedra[], s: Solicitud): Piedra[] {
+export function hasCriteriosRelevantes(s: Solicitud): boolean {
   const forma = s.corte?.forma;
   const peso = s.peso_quilates;
   const pres = s.presupuesto;
   const hayForma = forma != null && forma !== "indiferente";
   const hayPeso = peso != null && (peso.min != null || peso.max != null);
-  // ponytail: presupuesto en COP no es comparable con precios USD/ct → se omite el filtro de precio
   const hayPres = pres != null && (pres.min != null || pres.max != null) && pres.moneda !== "COP";
-  if (!hayForma && !hayPeso && !hayPres) return [];
+  return hayForma || hayPeso || hayPres;
+}
 
-  const [pesoMin, pesoMax] = bandaPeso(peso?.min ?? null, peso?.max ?? null);
-  const [presMin, presMax] = topePresupuesto(pres?.min ?? null, pres?.max ?? null);
+/** ¿La piedra cumple LITERALMENTE lo pedido (forma + banda de peso + tope de presupuesto)? */
+export function cumpleEstricto(p: Piedra, s: Solicitud): boolean {
+  if (!p.disponible) return false;
+  const forma = s.corte?.forma;
+  const hayForma = forma != null && forma !== "indiferente";
+  if (hayForma && p.forma !== forma) return false;
+  const peso = s.peso_quilates;
+  const hayPeso = peso != null && (peso.min != null || peso.max != null);
+  if (hayPeso) {
+    const [pMin, pMax] = bandaPeso(peso!.min ?? null, peso!.max ?? null);
+    if (!dentro(p.peso_ct, pMin, pMax)) return false;
+  }
+  const pres = s.presupuesto;
+  const hayPres = pres != null && (pres.min != null || pres.max != null) && pres.moneda !== "COP";
+  if (hayPres) {
+    const [, presMax] = topePresupuesto(pres!.min ?? null, pres!.max ?? null);
+    const precio = pres!.base === "total" ? p.precio_usd_ct * p.peso_ct : p.precio_usd_ct;
+    if (!dentro(precio, null, presMax)) return false;
+  }
+  return true;
+}
 
+export function hayMatchExacto(piedras: Piedra[], s: Solicitud): boolean {
+  if (!hasCriteriosRelevantes(s)) return false;
+  return piedras.some((p) => cumpleEstricto(p, s));
+}
+
+function penaltyPeso(p: Piedra, s: Solicitud): number {
+  const peso = s.peso_quilates;
+  if (!peso || (peso.min == null && peso.max == null)) return 0;
+  const min = peso.min ?? peso.max!;
+  const max = peso.max ?? peso.min!;
+  if (p.peso_ct >= min && p.peso_ct <= max) return 0;
+  const d = p.peso_ct < min ? min - p.peso_ct : p.peso_ct - max;
+  return d / ((min + max) / 2); // distancia relativa al centro pedido
+}
+
+function penaltyPres(p: Piedra, s: Solicitud): number {
+  const pres = s.presupuesto;
+  if (!pres || pres.moneda === "COP") return 0;
+  const tope = pres.max ?? pres.min;
+  if (tope == null) return 0;
+  const precio = pres.base === "total" ? p.precio_usd_ct * p.peso_ct : p.precio_usd_ct;
+  if (precio <= tope) return 0; // por debajo del presupuesto no penaliza
+  return (precio - tope) / tope; // exceso relativo
+}
+
+function penaltyForma(p: Piedra, s: Solicitud): number {
+  const forma = s.corte?.forma;
+  if (forma == null || forma === "indiferente") return 0;
+  return p.forma === forma ? 0 : 0.5;
+}
+
+/** Ranking por cercanía: nunca vacío si hay criterios y stock disponible. */
+export function rankearPiedras(piedras: Piedra[], s: Solicitud): Piedra[] {
+  if (!hasCriteriosRelevantes(s)) return [];
   return piedras
     .filter((p) => p.disponible)
-    .filter((p) => !hayForma || p.forma === forma)
-    .filter((p) => !hayPeso || dentro(p.peso_ct, pesoMin, pesoMax))
-    .filter((p) => {
-      if (!hayPres) return true;
-      // ponytail: base ausente → por_quilate (los precios del inventario son por quilate)
-      if (pres!.base === "total") return dentro(p.precio_usd_ct * p.peso_ct, presMin, presMax);
-      return dentro(p.precio_usd_ct, presMin, presMax);
-    })
-    .sort((a, b) => a.precio_usd_ct - b.precio_usd_ct)
-    .slice(0, 3);
+    .map((p) => ({ p, score: penaltyPeso(p, s) + penaltyPres(p, s) + penaltyForma(p, s) }))
+    .sort((a, b) => a.score - b.score || a.p.precio_usd_ct - b.p.precio_usd_ct)
+    .slice(0, 3)
+    .map((x) => x.p);
 }
 
 /** Un typo al pegar el link a mano en el Table Editor (p. ej. host truncado
@@ -70,8 +115,11 @@ export function normalizeMediaUrl(v: unknown): string | null {
   }
 }
 
-/** Trae el stock disponible y lo filtra contra la solicitud. */
-export async function matchInventory(db: DbClient, solicitud: Solicitud): Promise<Piedra[]> {
+/** Trae el stock disponible y devuelve las piedras más cercanas + si hubo match exacto. */
+export async function matchInventory(
+  db: DbClient,
+  solicitud: Solicitud
+): Promise<{ piedras: Piedra[]; hayExactas: boolean }> {
   const { data, error } = await db.from("inventario").select("*").eq("disponible", true);
   if (error) throw error;
   // Supabase devuelve columnas numeric como string; coercionar a number en el borde.
@@ -82,5 +130,5 @@ export async function matchInventory(db: DbClient, solicitud: Solicitud): Promis
     cantidad_piedras: Number(r.cantidad_piedras),
     media_url: normalizeMediaUrl(r.media_url),
   })) as Piedra[];
-  return filtrarPiedras(piedras, solicitud);
+  return { piedras: rankearPiedras(piedras, solicitud), hayExactas: hayMatchExacto(piedras, solicitud) };
 }

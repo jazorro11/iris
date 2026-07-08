@@ -36,7 +36,7 @@ test("propone piedras durante la aclaración (solicitud aún incompleta)", async
     }),
     saveLead: async () => ({ id: "x" }),
     notifySeller: async () => {},
-    matchInventory: async (s) => { pasoSolicitud = s; return [piedra]; },
+    matchInventory: async (s) => { pasoSolicitud = s; return { piedras: [piedra], hayExactas: true }; },
     checkpointer: new MemorySaver(),
   };
   const { reply, estado } = await runIris(deps, {
@@ -178,7 +178,7 @@ test("al completar, propone piedras del inventario en reply y al vendedor", asyn
     }),
     saveLead: async () => ({ id: "lead-1" }),
     notifySeller: async (t) => { seller.push(t); },
-    matchInventory: async () => [piedra],
+    matchInventory: async () => ({ piedras: [piedra], hayExactas: true }),
     checkpointer: new MemorySaver(),
   };
   const { reply, estado } = await runIris(deps, {

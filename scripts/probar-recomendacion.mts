@@ -106,7 +106,7 @@ for (const caso of casos) {
   try {
     const solicitud = await extractRequest(model, caso.texto);
     console.log(`Extraído:  ${resumenSolicitud(solicitud)}`);
-    const piedras = await matchInventory(db, solicitud);
+    const { piedras } = await matchInventory(db, solicitud);
     if (piedras.length === 0) {
       console.log("Propuesta: (ninguna)");
     } else {

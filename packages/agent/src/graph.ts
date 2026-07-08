@@ -2,7 +2,7 @@ import { StateGraph, START, END, type BaseCheckpointSaver } from "@langchain/lan
 import type { Solicitud, EstadoLead, LeadRow, Piedra, ComposeBrief } from "@iris/types";
 import { buildLeadRow } from "@iris/db";
 import { IrisState, type State } from "./state.js";
-import { evaluarEstado } from "./request.js";
+import { evaluarEstado, MAX_RONDAS } from "./request.js";
 import { buildClarificationMessage } from "./questions.js";
 import { getCheckpointer } from "./checkpointer.js";
 import { buildComposeBrief } from "./brief.js";
@@ -13,13 +13,15 @@ export interface IrisDeps {
   saveLead: (row: LeadRow) => Promise<{ id: string }>;
   notifySeller: (text: string) => Promise<void>;
   /** Opcional: propone piedras del inventario que coincidan. */
-  matchInventory?: (solicitud: Solicitud) => Promise<Piedra[]>;
+  matchInventory?: (solicitud: Solicitud) => Promise<{ piedras: Piedra[]; hayExactas: boolean }>;
   /** Opcional: redacta el mensaje al cliente desde el brief. Si falta o falla, se usan plantillas. */
   compose?: (brief: ComposeBrief) => Promise<string>;
   /** Opcional: últimos mensajes de la conversación, en orden cronológico. */
   getHistory?: () => Promise<{ rol: "comprador" | "agente"; texto: string }[]>;
   /** Opcional: clasifica el mensaje en {handoff, preguntaProfunda}. Sin ella, se usa DEFAULT_INTENT. */
   classifyIntent?: (text: string) => Promise<IntentFlags>;
+  /** Opcional: actualiza el resumen rodante (best-effort). Si falta o falla, se conserva el previo. */
+  summarize?: (a: { previo: string; userMessage: string; reply: string }) => Promise<string>;
   /** Por defecto PostgresSaver; en tests se inyecta MemorySaver. */
   checkpointer?: BaseCheckpointSaver;
 }
@@ -94,7 +96,7 @@ async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>
   await deps.saveLead(row);
   const updates: Partial<State> = {};
   if (state.estado === "completo" && !state.vendedorNotificado) {
-    const piedras = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
+    const { piedras } = deps.matchInventory ? await deps.matchInventory(state.solicitud) : { piedras: [] as Piedra[] };
     await deps.notifySeller(buildSellerSummary(row) + buildPiedrasPropuestas(piedras, { includeUrls: true }));
     updates.vendedorNotificado = true;
   }
@@ -105,6 +107,14 @@ async function efectosNode(state: State, deps: IrisDeps): Promise<Partial<State>
   return updates;
 }
 
+export function decideBriefIntent(a: {
+  handoff: boolean; estado: EstadoLead; tieneStones: boolean; rondas: number;
+}): "handoff" | "asesorar" | "aclarar" {
+  if (a.handoff) return "handoff";
+  if (a.estado === "completo" || a.tieneStones || a.rondas >= MAX_RONDAS) return "asesorar";
+  return "aclarar";
+}
+
 /** El cliente pide ver la foto explícitamente (ES/EN). En ese caso el dedup no
  * aplica: una petición directa no es una recomendación proactiva repetida. */
 const RE_PIDE_FOTO = /\bfotos?\b|\bfotograf|\bim[aá]gen(?:es)?\b|\bph?otos?\b|\bpict/i;
@@ -113,16 +123,24 @@ export function pideFoto(text: string): boolean {
 }
 
 async function responderNode(state: State, deps: IrisDeps): Promise<Partial<State>> {
-  const matches = deps.matchInventory ? await deps.matchInventory(state.solicitud) : [];
+  const { piedras: matches, hayExactas } = deps.matchInventory
+    ? await deps.matchInventory(state.solicitud)
+    : { piedras: [] as Piedra[], hayExactas: false };
   // Nunca reenviar una piedra ya recomendada al cliente EN UNA RECOMENDACIÓN PROACTIVA.
   // Si el cliente pide la foto explícitamente, se reenvía (se salta el dedup).
   const yaRecomendadas = new Set(state.piedrasRecomendadas);
   const piedras = pideFoto(state.inputText)
     ? matches
     : matches.filter((p) => !yaRecomendadas.has(p.id));
-  const briefIntent = state.intent.handoff
-    ? "handoff" as const
-    : state.estado === "completo" ? "asesorar" as const : "aclarar" as const;
+  // La válvula de escape mira `matches` (antes del dedup): si el catálogo tiene un
+  // match aunque ya se lo mostramos al cliente, seguimos en modo asesorar en vez de
+  // volver a preguntar. Usar `piedras` (post-dedup) revive el loop de re-preguntar.
+  const briefIntent = decideBriefIntent({
+    handoff: state.intent.handoff,
+    estado: state.estado,
+    tieneStones: matches.length > 0,
+    rondas: state.rondas,
+  });
   const fallback =
     briefIntent === "handoff"
       ? "¡Perfecto! Un asesor de Méraldi te contactará para finalizar. 💚" + buildPiedrasPropuestas(piedras)
@@ -130,20 +148,44 @@ async function responderNode(state: State, deps: IrisDeps): Promise<Partial<Stat
         ? "Con gusto sigo ayudándote. ¿Qué más te gustaría saber?" + buildPiedrasPropuestas(piedras)
         : buildClarificationMessage(state.camposFaltantes) + buildPiedrasPropuestas(piedras);
   const history = deps.getHistory ? await deps.getHistory() : [];
+  const yaPreguntado = state.preguntadas;
+  const target = state.camposFaltantes.find((c) => !yaPreguntado.includes(c)) ?? null;
+  const missingPrioritizado = target
+    ? [target, ...state.camposFaltantes.filter((c) => c !== target)]
+    : state.camposFaltantes;
+  const fotoAdjunta = (piedras[0]?.media_url ?? null) != null;
   const brief = buildComposeBrief({
     intent: briefIntent,
     userMessage: state.inputText,
     solicitud: state.solicitud,
-    missing: state.camposFaltantes,
+    missing: missingPrioritizado,
     stones: piedras,
     history,
     preguntaProfunda: state.intent.preguntaProfunda,
     idioma: state.intent.idioma,
+    // El dedup puede dejar `piedras` vacío aunque el catálogo tuviera un match exacto.
+    // No afirmar `match_exacto: sí` cuando no mostramos ninguna piedra (brief contradictorio).
+    hayExactas: hayExactas && piedras.length > 0,
+    yaPreguntado,
+    piedrasMostradas: state.piedras_mostradas,
+    resumen: state.resumen,
+    fotoAdjunta,
   });
   const reply = await composeOrFallback(deps, brief, fallback);
+  let resumen = state.resumen;
+  if (deps.summarize) {
+    try {
+      resumen = await deps.summarize({ previo: state.resumen, userMessage: state.inputText, reply });
+    } catch (err) {
+      console.error("[iris] summarize falló, conservo resumen previo:", err);
+    }
+  }
   return {
     reply,
     mediaUrl: piedras[0]?.media_url ?? null,
+    preguntadas: target ? [target] : [],
+    piedras_mostradas: piedras.map((p) => p.nombre),
+    resumen,
     piedrasRecomendadas: piedras.map((p) => p.id),
   };
 }

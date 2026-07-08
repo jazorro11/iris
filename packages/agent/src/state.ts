@@ -5,6 +5,11 @@ import { type IntentFlags, DEFAULT_INTENT } from "./intent.js";
 
 const lastWrite = <T>(def: T) => ({ reducer: (_p: T, n: T) => n, default: () => def });
 
+const unionArr = <T>(def: T[]) => ({
+  reducer: (p: T[], n: T[]) => Array.from(new Set([...(p ?? []), ...(n ?? [])])),
+  default: () => def,
+});
+
 export const IrisState = Annotation.Root({
   inputText: Annotation<string>(lastWrite("")),
   telegramUserId: Annotation<number>(lastWrite(0)),
@@ -25,12 +30,12 @@ export const IrisState = Annotation.Root({
   intent: Annotation<IntentFlags>(lastWrite<IntentFlags>(DEFAULT_INTENT)),
   vendedorNotificado: Annotation<boolean>(lastWrite(false)),
   handoffNotificado: Annotation<boolean>(lastWrite(false)),
+  preguntadas: Annotation<CampoCritico[]>(unionArr<CampoCritico>([])),
+  piedras_mostradas: Annotation<string[]>(unionArr<string>([])),
+  resumen: Annotation<string>(lastWrite("")),
   /** IDs de inventario ya recomendados al cliente en esta conversación.
    * Acumula (unión sin duplicados) para no reenviar la misma piedra dos veces. */
-  piedrasRecomendadas: Annotation<string[]>({
-    reducer: (p, n) => [...new Set([...(p ?? []), ...(n ?? [])])],
-    default: () => [],
-  }),
+  piedrasRecomendadas: Annotation<string[]>(unionArr<string>([])),
 });
 
 export type State = typeof IrisState.State;
