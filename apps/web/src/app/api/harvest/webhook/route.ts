@@ -6,7 +6,7 @@ import {
 } from "@iris/db";
 import {
   getPersona, evaluarGuardrails, siguienteTurno, extraerRegistro, espejarDataset, harvestEnv, RESPONSE_DELAY_MS,
-  STOP_WORDS,
+  STOP_WORDS, parseHarvestMessage,
   type HistItem,
 } from "@iris/harvest";
 import { sendHarvestMessage } from "@/lib/telegram/harvest-send";
@@ -24,9 +24,12 @@ export async function POST(request: Request) {
   }
 
   const update = (await request.json().catch(() => null)) as
-    | { update_id?: number; message?: { chat?: { id?: number }; text?: string } }
+    | {
+        update_id?: number;
+        message?: { chat?: { id?: number }; text?: string; caption?: string; photo?: { file_id: string }[] };
+      }
     | null;
-  if (!update?.message?.text || update.update_id == null) return NextResponse.json({ ok: true });
+  if (!update?.message || update.update_id == null) return NextResponse.json({ ok: true });
   if (update.message.chat?.id !== ownerChatId) return NextResponse.json({ ok: true });
 
   const db = createServerClient();
@@ -37,11 +40,13 @@ export async function POST(request: Request) {
   const conv = await getConversacionActiva(db);
   if (!conv) return NextResponse.json({ ok: true });
 
-  const respuestaDueno = update.message.text.trim();
+  const parsed = parseHarvestMessage(update.message);
+  if (!parsed) return NextResponse.json({ ok: true });
+  const { respuestaDueno, fotoFileId } = parsed;
 
   try {
     // 1) Guarda la respuesta del dueño en el turno actual del comprador.
-    await addHarvestMessage(db, conv.id, "dueño", respuestaDueno, conv.turno_actual);
+    await addHarvestMessage(db, conv.id, "dueño", respuestaDueno, conv.turno_actual, fotoFileId);
 
     // 2) Historial completo (incluye la respuesta recién guardada).
     const historial = (await getHarvestMessages(db, conv.id)) as HistItem[];
@@ -54,6 +59,7 @@ export async function POST(request: Request) {
       const rec = await extraerRegistro(createChatModel(), {
         conversationId: conv.id, personaKey: conv.persona_key, turno: conv.turno_actual,
         mensajeComprador: ultimoComprador, respuestaDueno, contextoPrevio,
+        duenoFotoFileId: fotoFileId,
       });
       const itemId = await espejarDataset(rec);
       await guardarDatasetRecord(db, rec, itemId);

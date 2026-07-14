@@ -4,6 +4,7 @@ export interface DatasetRecord {
   conversationId: string; personaKey: string; turno: number;
   mensajeComprador: string; respuestaDueno: string; contextoPrevio: string;
   veta: "precio" | "objecion" | "producto" | "tono" | "otro"; notasExtraccion: string;
+  duenoFotoFileId?: string | null;
 }
 
 export function buildConversacionRow(personaKey: string, ownerChatId: number) {
@@ -33,9 +34,12 @@ export async function getConversacionActiva(
 }
 
 export async function addHarvestMessage(
-  db: DbClient, conversationId: string, rol: "comprador" | "dueño", texto: string, turno: number
+  db: DbClient, conversationId: string, rol: "comprador" | "dueño", texto: string, turno: number,
+  fotoFileId?: string | null
 ): Promise<void> {
-  const { error } = await db.from("harvest_messages").insert({ conversation_id: conversationId, rol, texto, turno });
+  const { error } = await db.from("harvest_messages").insert({
+    conversation_id: conversationId, rol, texto, turno, foto_file_id: fotoFileId ?? null,
+  });
   if (error) throw error;
 }
 
@@ -56,6 +60,7 @@ export async function guardarDatasetRecord(db: DbClient, rec: DatasetRecord, lan
     conversation_id: rec.conversationId, persona_key: rec.personaKey, turno: rec.turno,
     mensaje_comprador: rec.mensajeComprador, respuesta_dueno: rec.respuestaDueno,
     contexto_previo: rec.contextoPrevio, veta: rec.veta, notas_extraccion: rec.notasExtraccion,
+    dueno_foto_file_id: rec.duenoFotoFileId ?? null,
     langfuse_dataset_item_id: langfuseItemId,
   });
   if (error) throw error;

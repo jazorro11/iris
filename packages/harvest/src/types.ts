@@ -27,4 +27,5 @@ export interface DatasetRecord {
   contextoPrevio: string;
   veta: Veta;
   notasExtraccion: string;
+  duenoFotoFileId?: string | null;
 }
