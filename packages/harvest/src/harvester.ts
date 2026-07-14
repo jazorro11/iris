@@ -19,6 +19,7 @@ export async function extraerRegistro(
   input: {
     conversationId: string; personaKey: string; turno: number;
     mensajeComprador: string; respuestaDueno: string; contextoPrevio: string;
+    duenoFotoFileId?: string | null;
   }
 ): Promise<DatasetRecord> {
   let veta: DatasetRecord["veta"] = "otro";
@@ -45,5 +46,6 @@ export async function extraerRegistro(
     contextoPrevio: input.contextoPrevio,
     veta,
     notasExtraccion,
+    duenoFotoFileId: input.duenoFotoFileId ?? null,
   };
 }
