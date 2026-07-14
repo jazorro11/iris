@@ -7,3 +7,4 @@ export * from "./harvester.js";
 export * from "./observability.js";
 export * from "./telegramParse.js";
 export * from "./ownerCommands.js";
+export * from "./iniciar.js";
