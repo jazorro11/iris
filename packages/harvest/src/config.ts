@@ -1,7 +1,7 @@
 export const MAX_TURNOS = 10;
 
 /** Palabras del dueño que detienen la cosecha (word-boundary, case-insensitive). */
-export const STOP_WORDS = /\b(pausa|para|basta)\b|¿?\s*eres un bot\s*\??/i;
+export const STOP_WORDS = /\b(pausa|basta|det[eé]nte)\b|¿?\s*eres un bot\s*\??/i;
 
 export const RESPONSE_DELAY_MS = 4000;
 

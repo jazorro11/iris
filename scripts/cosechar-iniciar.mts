@@ -1,7 +1,10 @@
 // Inicia una conversación de cosecha con el dueño. Uso:
 //   npx tsx --env-file=apps/web/.env scripts/cosechar-iniciar.mts <persona_key>
-import { createServerClient, getConversacionActiva, crearConversacion, addHarvestMessage } from "../packages/db/src/index.ts";
-import { getPersona, harvestEnv } from "../packages/harvest/src/index.ts";
+// Los barrels (export *) de @iris/db y @iris/harvest no surfacean sus re-exports bajo tsx; subpath directo.
+import { createServerClient } from "../packages/db/src/client.ts";
+import { getConversacionActiva, crearConversacion, addHarvestMessage } from "../packages/db/src/queries/harvest.ts";
+import { getPersona } from "../packages/harvest/src/personas.ts";
+import { harvestEnv } from "../packages/harvest/src/config.ts";
 import { sendHarvestMessage } from "../apps/web/src/lib/telegram/harvest-send.ts";
 
 const key = process.argv[2];

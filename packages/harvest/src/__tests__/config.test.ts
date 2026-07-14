@@ -7,10 +7,10 @@ test("MAX_TURNOS es 10", () => {
 });
 
 test("STOP_WORDS detecta las palabras de pausa del dueño", () => {
-  for (const t of ["pausa", "para", "¿eres un bot?", "basta ya", "PARA"]) {
+  for (const t of ["pausa", "¿eres un bot?", "basta ya", "detente", "PAUSA"]) {
     assert.match(t, STOP_WORDS, `debería detectar: ${t}`);
   }
-  for (const t of ["hola", "me interesa", "cuánto cuesta"]) {
+  for (const t of ["hola", "me interesa", "cuánto cuesta", "es para un anillo", "una esmeralda para regalo"]) {
     assert.doesNotMatch(t, STOP_WORDS, `no debería detectar: ${t}`);
   }
 });
