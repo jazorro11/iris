@@ -68,3 +68,25 @@ export function getPersona(key: string): Persona {
   if (!p) throw new Error(`Persona desconocida: ${key}. Opciones: ${PERSONAS.map((x) => x.key).join(", ")}`);
   return p;
 }
+
+/** Resuelve el argumento de `/nuevo`: número 1-N (posición en PERSONAS) o key exacta. `null` si no resuelve. */
+export function resolverPersona(arg: string): Persona | null {
+  const n = Number(arg);
+  if (Number.isInteger(n) && n >= 1 && n <= PERSONAS.length) return PERSONAS[n - 1];
+  return PERSONAS.find((p) => p.key === arg) ?? null;
+}
+
+/**
+ * Elige el perfil menos usado dado el conteo de conversaciones por persona.
+ * Perfiles sin conversaciones cuentan 0. Empates se rompen por el orden de PERSONAS.
+ */
+export function elegirPersonaMenosUsada(counts: { persona_key: string; count: number }[]): string {
+  const byKey = new Map(counts.map((c) => [c.persona_key, c.count]));
+  let mejor = PERSONAS[0];
+  let mejorCount = byKey.get(mejor.key) ?? 0;
+  for (const p of PERSONAS) {
+    const c = byKey.get(p.key) ?? 0;
+    if (c < mejorCount) { mejor = p; mejorCount = c; }
+  }
+  return mejor.key;
+}

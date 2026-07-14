@@ -3,11 +3,14 @@ import { createChatModel } from "@iris/agent";
 import {
   createServerClient, getConversacionActiva, getHarvestMessages, addHarvestMessage,
   guardarDatasetRecord, cerrarConversacion, bumpTurno, updateYaVisto,
+  crearConversacion, marcarTodasDetenidas, contarConversacionesPorPersona,
 } from "@iris/db";
 import {
   getPersona, evaluarGuardrails, siguienteTurno, extraerRegistro, espejarDataset, harvestEnv, RESPONSE_DELAY_MS,
   STOP_WORDS, parseHarvestMessage,
-  type HistItem,
+  parseHarvestCommand, HARVEST_KEYBOARD, iniciarConversacion, resolverPersona,
+  elegirPersonaMenosUsada, listarPerfiles, AYUDA_TEXT, GREETING_TEXT,
+  type HistItem, type IniciarDeps, type Persona,
 } from "@iris/harvest";
 import { sendHarvestMessage } from "@/lib/telegram/harvest-send";
 
@@ -37,8 +40,32 @@ export async function POST(request: Request) {
   // Idempotencia: un reintento de Telegram no genera turno duplicado.
   if (await updateYaVisto(db, update.update_id)) return NextResponse.json({ ok: true });
 
+  // Comandos del dueño (teclado persistente + slash). Se manejan antes del flujo de cosecha.
+  const command = parseHarvestCommand(update.message.text);
+  if (command) {
+    try {
+      await manejarComando(db, ownerChatId, command);
+    } catch (err) {
+      console.error(
+        `[harvest] comando FALLÓ (tipo=${command.tipo}, update_id=${update.update_id}). ` +
+        `El comando del dueño no se completó; revisa el error abajo. Error:`,
+        err
+      );
+      try {
+        await sendHarvestMessage(ownerChatId, "Algo falló, intenta de nuevo. 🙏", HARVEST_KEYBOARD);
+      } catch {
+        // No re-lanzar: ya logueamos el error original arriba.
+      }
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const conv = await getConversacionActiva(db);
-  if (!conv) return NextResponse.json({ ok: true });
+  if (!conv) {
+    // Mensaje normal sin práctica activa → pista suave (con teclado para descubrimiento).
+    await sendHarvestMessage(ownerChatId, "Toca 🆕 Nuevo comprador para empezar una práctica.", HARVEST_KEYBOARD);
+    return NextResponse.json({ ok: true });
+  }
 
   const parsed = parseHarvestMessage(update.message);
   if (!parsed) return NextResponse.json({ ok: true });
@@ -97,4 +124,63 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+/** Ejecuta un comando del dueño (nuevo/detener/perfiles/ayuda/estado/start). */
+async function manejarComando(
+  db: ReturnType<typeof createServerClient>,
+  ownerChatId: number,
+  command: NonNullable<ReturnType<typeof parseHarvestCommand>>,
+): Promise<void> {
+  switch (command.tipo) {
+    case "start":
+      await sendHarvestMessage(ownerChatId, GREETING_TEXT, HARVEST_KEYBOARD);
+      return;
+    case "ayuda":
+      await sendHarvestMessage(ownerChatId, AYUDA_TEXT, HARVEST_KEYBOARD);
+      return;
+    case "perfiles":
+      await sendHarvestMessage(ownerChatId, listarPerfiles(), HARVEST_KEYBOARD);
+      return;
+    case "estado": {
+      const c = await getConversacionActiva(db);
+      const txt = c
+        ? `Comprador activo: ${getPersona(c.persona_key).arquetipo} (turno ${c.turno_actual}).`
+        : "Sin conversación activa. Toca 🆕 Nuevo comprador para empezar.";
+      await sendHarvestMessage(ownerChatId, txt, HARVEST_KEYBOARD);
+      return;
+    }
+    case "detener": {
+      const n = await marcarTodasDetenidas(db, "detenida por el dueño");
+      const txt = n > 0
+        ? "Listo, detuve la práctica. Toca 🆕 Nuevo comprador cuando quieras otra."
+        : "No tienes ninguna práctica activa.";
+      await sendHarvestMessage(ownerChatId, txt, HARVEST_KEYBOARD);
+      return;
+    }
+    case "nuevo": {
+      let persona: Persona;
+      if (command.arg) {
+        const p = resolverPersona(command.arg);
+        if (!p) {
+          await sendHarvestMessage(ownerChatId, `No reconozco "${command.arg}". Toca 📋 Perfiles para ver las opciones.`, HARVEST_KEYBOARD);
+          return;
+        }
+        persona = p;
+      } else {
+        persona = getPersona(elegirPersonaMenosUsada(await contarConversacionesPorPersona(db)));
+      }
+      const deps: IniciarDeps = {
+        hayActiva: async () => !!(await getConversacionActiva(db)),
+        crear: (key) => crearConversacion(db, key, ownerChatId),
+        guardarPrimerMensaje: (id, texto) => addHarvestMessage(db, id, "comprador", texto, 1),
+        enviar: (texto, rm) => sendHarvestMessage(ownerChatId, texto, rm),
+      };
+      const res = await iniciarConversacion(deps, persona, HARVEST_KEYBOARD);
+      if (res.estado === "ya-activa") {
+        await sendHarvestMessage(ownerChatId, "Ya tienes un comprador activo. Toca ⏹ Detener antes de empezar otro.", HARVEST_KEYBOARD);
+      }
+      return;
+    }
+  }
 }
