@@ -103,3 +103,16 @@ export async function updateYaVisto(db: DbClient, updateId: number): Promise<boo
   }
   return false;
 }
+
+/** Cuenta conversaciones por `persona_key` (para la rotación de perfiles). Agrupa en JS (volumen bajo). */
+export async function contarConversacionesPorPersona(
+  db: DbClient
+): Promise<{ persona_key: string; count: number }[]> {
+  const { data, error } = await db.from("harvest_conversations").select("persona_key");
+  if (error) throw error;
+  const counts = new Map<string, number>();
+  for (const row of (data ?? []) as { persona_key: string }[]) {
+    counts.set(row.persona_key, (counts.get(row.persona_key) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([persona_key, count]) => ({ persona_key, count }));
+}
