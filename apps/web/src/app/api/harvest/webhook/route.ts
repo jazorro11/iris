@@ -6,6 +6,7 @@ import {
 } from "@iris/db";
 import {
   getPersona, evaluarGuardrails, siguienteTurno, extraerRegistro, espejarDataset, harvestEnv, RESPONSE_DELAY_MS,
+  STOP_WORDS,
   type HistItem,
 } from "@iris/harvest";
 import { sendHarvestMessage } from "@/lib/telegram/harvest-send";
@@ -48,17 +49,21 @@ export async function POST(request: Request) {
     const contextoPrevio = historial.slice(0, -1).map((h) => `${h.rol}: ${h.texto}`).join(" | ").slice(0, 1000);
 
     // 3) Cosecha el par → dataset local + espejo Langfuse.
-    const rec = await extraerRegistro(createChatModel(), {
-      conversationId: conv.id, personaKey: conv.persona_key, turno: conv.turno_actual,
-      mensajeComprador: ultimoComprador, respuestaDueno, contextoPrevio,
-    });
-    const itemId = await espejarDataset(rec);
-    await guardarDatasetRecord(db, rec, itemId);
+    // No cosechar señales de pausa (ruido en el dataset); el guardrail las cierra abajo.
+    if (!STOP_WORDS.test(respuestaDueno)) {
+      const rec = await extraerRegistro(createChatModel(), {
+        conversationId: conv.id, personaKey: conv.persona_key, turno: conv.turno_actual,
+        mensajeComprador: ultimoComprador, respuestaDueno, contextoPrevio,
+      });
+      const itemId = await espejarDataset(rec);
+      await guardarDatasetRecord(db, rec, itemId);
+    }
 
     // 4) Guardrails.
     const g = evaluarGuardrails({ turnosComprador: conv.turno_actual, ultimoTextoDueno: respuestaDueno });
     if (g.accion === "detener") {
       await cerrarConversacion(db, conv.id, "detenida", g.motivo);
+      await sendHarvestMessage(ownerChatId, "Perfecto, lo dejamos por ahora. ¡Gracias por tu tiempo! 🙏");
       return NextResponse.json({ ok: true });
     }
 
@@ -67,6 +72,7 @@ export async function POST(request: Request) {
     const turno = await siguienteTurno(createChatModel({ temperature: 0.7 }), persona, historial);
     if (turno.fin) {
       await cerrarConversacion(db, conv.id, "terminada", "persona finalizó");
+      await sendHarvestMessage(ownerChatId, "Gracias, lo pienso y te escribo. 🙏");
       return NextResponse.json({ ok: true });
     }
 
@@ -77,7 +83,11 @@ export async function POST(request: Request) {
     await delay(RESPONSE_DELAY_MS);
     await sendHarvestMessage(ownerChatId, turno.texto);
   } catch (err) {
-    console.error("[harvest] error procesando turno:", err);
+    console.error(
+      `[harvest] turno FALLÓ (conversation=${conv.id}, update_id=${update.update_id}, turno_actual=${conv.turno_actual}). ` +
+      `La conversación pudo quedar sin avanzar; revisa y si aplica usa cosechar-detener + relanzar. Error:`,
+      err
+    );
   }
 
   return NextResponse.json({ ok: true });
