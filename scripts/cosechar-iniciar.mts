@@ -1,0 +1,23 @@
+// Inicia una conversación de cosecha con el dueño. Uso:
+//   npx tsx --env-file=apps/web/.env scripts/cosechar-iniciar.mts <persona_key>
+import { createServerClient, getConversacionActiva, crearConversacion, addHarvestMessage } from "../packages/db/src/index.ts";
+import { getPersona, harvestEnv } from "../packages/harvest/src/index.ts";
+import { sendHarvestMessage } from "../apps/web/src/lib/telegram/harvest-send.ts";
+
+const key = process.argv[2];
+if (!key) { console.error("Falta persona_key. Ej: cosechar-iniciar.mts inversionista"); process.exit(1); }
+
+const persona = getPersona(key);
+const { ownerChatId } = harvestEnv();
+if (!Number.isFinite(ownerChatId)) { console.error("OWNER_HARVEST_CHAT_ID no configurado"); process.exit(1); }
+
+const db = createServerClient();
+if (await getConversacionActiva(db)) {
+  console.error("Ya hay una conversación activa. Ciérrala con cosechar-detener.mts antes de iniciar otra.");
+  process.exit(1);
+}
+
+const { id } = await crearConversacion(db, persona.key, ownerChatId);
+await addHarvestMessage(db, id, "comprador", persona.primerMensaje, 1);
+await sendHarvestMessage(ownerChatId, persona.primerMensaje);
+console.log(`Conversación ${id} iniciada con persona "${persona.key}". Primer mensaje enviado al dueño.`);
