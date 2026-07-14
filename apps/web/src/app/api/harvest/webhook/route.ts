@@ -10,7 +10,7 @@ import {
   STOP_WORDS, parseHarvestMessage,
   parseHarvestCommand, HARVEST_KEYBOARD, iniciarConversacion, resolverPersona,
   elegirPersonaMenosUsada, listarPerfiles, AYUDA_TEXT, GREETING_TEXT,
-  type HistItem, type IniciarDeps,
+  type HistItem, type IniciarDeps, type Persona,
 } from "@iris/harvest";
 import { sendHarvestMessage } from "@/lib/telegram/harvest-send";
 
@@ -43,7 +43,20 @@ export async function POST(request: Request) {
   // Comandos del dueño (teclado persistente + slash). Se manejan antes del flujo de cosecha.
   const command = parseHarvestCommand(update.message.text);
   if (command) {
-    await manejarComando(db, ownerChatId, command);
+    try {
+      await manejarComando(db, ownerChatId, command);
+    } catch (err) {
+      console.error(
+        `[harvest] comando FALLÓ (tipo=${command.tipo}, update_id=${update.update_id}). ` +
+        `El comando del dueño no se completó; revisa el error abajo. Error:`,
+        err
+      );
+      try {
+        await sendHarvestMessage(ownerChatId, "Algo falló, intenta de nuevo. 🙏", HARVEST_KEYBOARD);
+      } catch {
+        // No re-lanzar: ya logueamos el error original arriba.
+      }
+    }
     return NextResponse.json({ ok: true });
   }
 
@@ -146,7 +159,7 @@ async function manejarComando(
       return;
     }
     case "nuevo": {
-      let persona;
+      let persona: Persona;
       if (command.arg) {
         const p = resolverPersona(command.arg);
         if (!p) {
